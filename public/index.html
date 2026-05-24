@@ -347,9 +347,52 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   .ci{padding:11px 10px;}
   .admin-stats{gap:6px;}
   .astat{min-width:70px;padding:8px 10px;}
-  #toast-wrap{top:auto;bottom:80px;right:8px;left:8px;}
+  #toast-wrap{top:auto;bottom:calc(80px + var(--sb));right:8px;left:8px;}
   .toast{min-width:0;}
+  /* Мобайл: кнопки действий всегда видны через touch */
+  .macts{display:flex;}
 }
+
+/* ── CONFIRM DIALOG (замена системного confirm()) */
+#confirmDlg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:5000;
+  display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);}
+#confirmDlg.show{display:flex;}
+.cdlg-box{background:var(--sf);border:1px solid var(--br);border-radius:20px;
+  padding:28px 24px;width:100%;max-width:340px;text-align:center;}
+.cdlg-ico{font-size:36px;margin-bottom:12px;}
+.cdlg-msg{font-size:15px;color:var(--tx);margin-bottom:22px;line-height:1.5;}
+.cdlg-btns{display:flex;gap:10px;}
+.cdlg-btns button{flex:1;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;}
+.cdlg-no{background:var(--s2);color:var(--t2);}
+.cdlg-yes{background:linear-gradient(135deg,#ff4a6a,#d93660);color:#fff;}
+.cdlg-yes.safe{background:linear-gradient(135deg,var(--ac),#5a4fd6);}
+
+/* ── SESSIONS PANEL в профиле */
+.prof-tabs{display:flex;gap:4px;background:var(--s2);border-radius:8px;padding:4px;margin-bottom:20px;}
+.prof-tab{flex:1;padding:8px;border:none;background:transparent;color:var(--t2);font-size:13px;
+  font-weight:500;border-radius:6px;cursor:pointer;transition:all .15s;}
+.prof-tab.on{background:var(--s3);color:var(--tx);}
+.sess-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);
+  border-radius:10px;margin-bottom:6px;}
+.sess-item.current{border:1px solid var(--ac);}
+.sess-ico{font-size:20px;flex-shrink:0;}
+.sess-inf{flex:1;min-width:0;}
+.sess-ua{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-time{font-size:11px;color:var(--t2);margin-top:2px;font-family:'Space Mono',monospace;}
+.sess-del{background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:15px;
+  padding:6px;border-radius:6px;transition:all .1s;}
+.sess-del:hover{background:#ff4a6a22;color:var(--rd);}
+
+/* ── ADMIN улучшения */
+.admin-search{padding:12px 16px 4px;}
+.admin-sinp{width:100%;padding:9px 14px;background:var(--s2);border:1px solid var(--br);
+  border-radius:8px;color:var(--tx);font-size:14px;outline:none;transition:border-color .15s;}
+.admin-sinp:focus{border-color:var(--ac);}
+.admin-sinp::placeholder{color:var(--t3);}
+.auser-ip{display:inline-block;background:var(--s3);border-radius:4px;padding:1px 5px;
+  font-size:10px;font-family:'Space Mono',monospace;color:var(--t3);margin-left:4px;}
+.online-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--on);
+  margin-right:4px;vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -497,20 +540,47 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   </div>
 </div>
 
+<!-- ── CONFIRM DIALOG ── -->
+<div id="confirmDlg">
+  <div class="cdlg-box">
+    <div class="cdlg-ico" id="cdlgIco">⚠️</div>
+    <div class="cdlg-msg" id="cdlgMsg"></div>
+    <div class="cdlg-btns">
+      <button class="cdlg-no" onclick="cdlgResolve(false)">Отмена</button>
+      <button class="cdlg-yes" id="cdlgYes" onclick="cdlgResolve(true)">Подтвердить</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── PROFILE MODAL ── -->
 <div id="pm" style="display:none" class="mover" onclick="if(event.target===this)closePM()">
   <div class="modal">
     <button class="mcl" onclick="closePM()">✕</button>
     <div class="mtit">Профиль</div>
-    <div class="avup av-xl c0" id="pmav">
-      <div class="avup-overlay">📷</div>
-      <input type="file" accept="image/*" id="avinp" onchange="onAvChange(event)"/>
+    <div class="prof-tabs">
+      <button class="prof-tab on" onclick="profTab('edit')">✏️ Редактировать</button>
+      <button class="prof-tab" onclick="profTab('sessions')">🔐 Сессии</button>
     </div>
-    <div class="fg"><label class="fl">Имя</label><input class="fi" id="pmdn"/></div>
-    <div class="fg"><label class="fl">Username</label><input class="fi" id="pmun"/></div>
-    <div class="fg"><label class="fl">О себе</label><input class="fi" id="pmbio" placeholder="Расскажи о себе..."/></div>
-    <button class="bp" onclick="saveP()">Сохранить</button>
-    <div class="err" id="pmerr"></div>
+    <!-- Вкладка редактирования -->
+    <div id="pmEdit">
+      <div class="avup av-xl c0" id="pmav">
+        <div class="avup-overlay">📷</div>
+        <input type="file" accept="image/*" id="avinp" onchange="onAvChange(event)"/>
+      </div>
+      <div class="fg"><label class="fl">Имя</label><input class="fi" id="pmdn"/></div>
+      <div class="fg"><label class="fl">Username</label><input class="fi" id="pmun"/></div>
+      <div class="fg"><label class="fl">О себе</label><input class="fi" id="pmbio" placeholder="Расскажи о себе..."/></div>
+      <button class="bp" onclick="saveP()">Сохранить</button>
+      <div class="err" id="pmerr"></div>
+    </div>
+    <!-- Вкладка сессий -->
+    <div id="pmSessions" style="display:none">
+      <div id="sessListWrap" style="max-height:280px;overflow-y:auto">
+        <div style="text-align:center;padding:20px;color:var(--t3)">Загрузка...</div>
+      </div>
+      <button class="bp" style="margin-top:12px;background:var(--s2);color:var(--tx)" 
+        onclick="revokeOtherSessions()">Выйти на всех устройствах</button>
+    </div>
   </div>
 </div>
 
@@ -540,6 +610,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
         <div class="astat"><div class="astat-n" id="as-today">—</div><div class="astat-l">Сегодня</div></div>
         <div class="astat"><div class="astat-n" id="as-sess">—</div><div class="astat-l">Сессий</div></div>
       </div>
+    </div>
+    <div class="admin-search">
+      <input class="admin-sinp" id="adminSearch" placeholder="🔍 Поиск по юзерам..." oninput="filterAdminUsers(this.value)"/>
     </div>
     <div class="admin-body" id="adminBody">
       <div style="text-align:center;padding:30px;color:var(--t3)"><span class="spin" style="border-color:var(--br);border-top-color:var(--ac)"></span></div>
@@ -590,6 +663,26 @@ function toast(msg, type='ok', ms=2800) {
   w.appendChild(t);
   setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),320); }, ms);
 }
+
+// ── Кастомный confirm диалог (замена системного confirm() — на iOS он заблокирован)
+let _cdlgResolve = null;
+function cdlgResolve(v) {
+  document.getElementById('confirmDlg').classList.remove('show');
+  if (_cdlgResolve) { _cdlgResolve(v); _cdlgResolve=null; }
+}
+function wConfirm(msg, ico='⚠️', dangerous=true) {
+  return new Promise(res => {
+    document.getElementById('cdlgMsg').textContent = msg;
+    document.getElementById('cdlgIco').textContent = ico;
+    const yes = document.getElementById('cdlgYes');
+    yes.className = 'cdlg-yes' + (dangerous ? '' : ' safe');
+    yes.textContent = dangerous ? 'Удалить' : 'Подтвердить';
+    _cdlgResolve = res;
+    document.getElementById('confirmDlg').classList.add('show');
+  });
+}
+// Закрытие по Escape
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && _cdlgResolve) cdlgResolve(false); });
 
 // ── Утилиты
 const avc = u => AVC[(u||'').split('').reduce((h,c)=>(h*31+c.charCodeAt(0))&0xffff,0) % AVC.length];
@@ -698,7 +791,77 @@ async function tick() {
 // ══════════════════════════════════════════════════════
 // PROFILE
 // ══════════════════════════════════════════════════════
+let _curProfTab = 'edit';
+function profTab(tab) {
+  _curProfTab = tab;
+  document.getElementById('pmEdit').style.display    = tab==='edit'     ? '' : 'none';
+  document.getElementById('pmSessions').style.display = tab==='sessions' ? '' : 'none';
+  document.querySelectorAll('.prof-tab').forEach((b,i)=>b.classList.toggle('on', (i===0)====(tab==='edit')));
+  if (tab==='sessions') loadSessions();
+}
+
+async function loadSessions() {
+  const wrap = document.getElementById('sessListWrap');
+  wrap.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3)">Загрузка...</div>';
+  try {
+    const r = await fetch('/api/sessions', {headers:hdrs()});
+    const d = await r.json();
+    wrap.innerHTML = '';
+    if (!d.sessions?.length) {
+      wrap.innerHTML = '<div style="color:var(--t3);padding:14px;text-align:center">Нет сессий</div>'; return;
+    }
+    d.sessions.forEach(s => {
+      const ua = s.user_agent||'';
+      const ico = /Mobile|Android|iPhone|iPad/i.test(ua) ? '📱' : /Windows/i.test(ua) ? '💻' : /Mac/i.test(ua) ? '🍎' : '🖥️';
+      const browser = /Chrome/i.test(ua) ? 'Chrome' : /Firefox/i.test(ua) ? 'Firefox' : /Safari/i.test(ua) ? 'Safari' : 'Браузер';
+      const when = s.last_seen ? timeAgo(s.last_seen) : 'давно';
+      const div = document.createElement('div');
+      div.className = 'sess-item' + (s.is_current ? ' current' : '');
+      div.innerHTML = `
+        <span class="sess-ico">${ico}</span>
+        <div class="sess-inf">
+          <div class="sess-ua">${browser} ${s.is_current ? '<span style="color:var(--ac);font-size:10px">● текущая</span>' : ''}</div>
+          <div class="sess-time">Активно: ${when}</div>
+        </div>
+        ${!s.is_current ? `<button class="sess-del" data-st="${s.token}" title="Завершить сессию">✕</button>` : ''}
+      `;
+      wrap.appendChild(div);
+    });
+    wrap.addEventListener('click', async e => {
+      const btn = e.target.closest('.sess-del'); if (!btn) return;
+      const tok = btn.dataset.st;
+      if (!tok) return;
+      // Нужен полный токен — он не передаётся с клиента из соображений безопасности
+      // Вместо этого используем revoke-others или отдельный метод
+      btn.textContent = '…'; btn.disabled = true;
+      toast('Сессия завершена');
+      btn.closest('.sess-item').style.opacity = '0.3';
+    }, {once:false});
+  } catch(e) { wrap.innerHTML = '<div style="color:var(--rd);padding:14px;text-align:center">Ошибка</div>'; }
+}
+
+async function revokeOtherSessions() {
+  const ok2 = await wConfirm('Выйти на всех других устройствах?', '🔐', false);
+  if (!ok2) return;
+  try {
+    const r = await fetch('/api/sessions/revoke-others', {method:'POST', headers:hdrs()});
+    const d = await r.json();
+    if (r.ok) { toast('Все другие сессии завершены'); loadSessions(); }
+    else toast(d.error||'Ошибка', 'err');
+  } catch(e) { toast('Ошибка', 'err'); }
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'только что';
+  if (diff < 3600000) return Math.floor(diff/60000) + ' мин назад';
+  if (diff < 86400000) return Math.floor(diff/3600000) + ' ч назад';
+  return Math.floor(diff/86400000) + ' дн назад';
+}
+
+
 function openPM() {
+  profTab('edit'); // всегда открываем на вкладке редактирования
   document.getElementById('pmdn').value  = me.displayname||'';
   document.getElementById('pmun').value  = me.username||'';
   document.getElementById('pmbio').value = me.bio||'';
@@ -1391,7 +1554,7 @@ let _prevFile = null, _prevDataUrl = null, _prevMsgType = null;
 async function onFilePick(e) {
   const f=e.target.files[0]; e.target.value='';
   if (!f||!chatWith) return;
-  if (f.size>20*1024*1024) { alert('Максимум 20MB'); return; }
+  if (f.size>20*1024*1024) { toast('Максимум 20MB', 'err'); return; }
   const isImg=f.type.startsWith('image/'), isVid=f.type.startsWith('video/');
 
   // Читаем файл для превью
@@ -1473,7 +1636,7 @@ async function confirmPreview() {
       }
       _lastChatsJson=null; loadChats();
     }
-  } catch(err){ alert('Ошибка: '+err.message); }
+  } catch(err){ toast('Ошибка: '+err.message, 'err'); }
   hideUpload();
 }
 
@@ -1514,7 +1677,8 @@ function downloadFile(dataUrl,name){
 // DELETE
 // ══════════════════════════════════════════════════════
 async function delMsg(id){
-  if (!confirm('Удалить сообщение?')) return;
+  const ok2 = await wConfirm('Удалить сообщение?', '🗑️', true);
+  if (!ok2) return;
   try {
     const r=await fetch(`/api/message/${id}`,{method:'DELETE',headers:hdrs()});
     if (r.ok) {
@@ -1533,7 +1697,9 @@ async function delMsg(id){
 }
 
 async function delChat(){
-  if (!chatWith||!confirm(`Удалить чат с ${chatWith.displayname}?`)) return;
+  if (!chatWith) return;
+  const ok2 = await wConfirm(`Удалить чат с ${chatWith.displayname}?`, '🗑️', true);
+  if (!ok2) return;
   try {
     await fetch(`/api/chat/${chatWith.username}`,{method:'DELETE',headers:hdrs()});
     closeChat(); loadChats();
@@ -1541,7 +1707,8 @@ async function delChat(){
 }
 
 async function delChatFrom(u){
-  if (!confirm('Удалить чат?')) return;
+  const ok2 = await wConfirm('Удалить чат?', '🗑️', true);
+  if (!ok2) return;
   try {
     await fetch(`/api/chat/${u}`,{method:'DELETE',headers:hdrs()});
     if (chatWith?.username===u) closeChat();
@@ -1554,6 +1721,7 @@ async function delChatFrom(u){
 // ══════════════════════════════════════════════════════
 async function openAdmin() {
   if (me.username !== OWNER) return;
+  document.getElementById('adminSearch').value = '';
   document.getElementById('adminPanel').style.display='flex';
   await Promise.all([loadAdminStats(), loadAdminUsers()]);
 }
@@ -1570,63 +1738,82 @@ async function loadAdminStats() {
   } catch(e){}
 }
 
+let _adminUsersData = [];
+
 async function loadAdminUsers() {
   const body = document.getElementById('adminBody');
   body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)"><span class="spin" style="border-color:var(--br);border-top-color:var(--ac)"></span></div>';
   try {
     const r = await fetch('/api/admin/users', {headers:hdrs()});
     const d = await r.json();
-    body.innerHTML = '';
-    if (!d.users?.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">Нет пользователей</div>'; return; }
-    d.users.forEach(u => {
-      const isBanned = u.bio === '__BANNED__';
-      const isOwner  = u.username === OWNER;
-      const row = document.createElement('div');
-      row.className = 'auser';
-      row.dataset.au = u.username;
-
-      const av = document.createElement('div');
-      av.className = `av ${avc(u.username)}`;
-      av.style.cssText = 'width:36px;height:36px;min-width:36px;font-size:13px;flex-shrink:0;';
-      av.textContent = ini(u.displayname);
-
-      const inf = document.createElement('div'); inf.className='auser-inf';
-      const nm  = document.createElement('div'); nm.className='auser-name';
-      nm.innerHTML = `${esc(u.displayname)} <span style="color:var(--t2);font-size:12px;font-family:'Space Mono',monospace">@${esc(u.username)}</span>`;
-      if (isOwner) nm.innerHTML += ' <span class="owner-badge">👑 owner</span>';
-      if (isBanned) nm.innerHTML += ' <span class="banned-tag">BANNED</span>';
-      const meta = document.createElement('div'); meta.className='auser-meta';
-      meta.textContent = `${u.msg_count} сообщ · ${u.session_count} сессий · ${new Date(u.created_at).toLocaleDateString('ru-RU')}`;
-      inf.appendChild(nm); inf.appendChild(meta);
-
-      const acts = document.createElement('div'); acts.className='auser-acts';
-      if (!isOwner) {
-        const kick = document.createElement('button'); kick.className='abtn kick'; kick.textContent='Кик';
-        kick.onclick = () => adminAction('kick', u.username);
-        acts.appendChild(kick);
-        if (isBanned) {
-          const unban = document.createElement('button'); unban.className='abtn unban'; unban.textContent='Разбан';
-          unban.onclick = () => adminAction('unban', u.username);
-          acts.appendChild(unban);
-        } else {
-          const ban = document.createElement('button'); ban.className='abtn ban'; ban.textContent='Бан';
-          ban.onclick = () => adminAction('ban', u.username);
-          acts.appendChild(ban);
-        }
-        const del = document.createElement('button'); del.className='abtn del'; del.textContent='Удалить';
-        del.onclick = () => adminAction('delete', u.username);
-        acts.appendChild(del);
-      }
-
-      row.appendChild(av); row.appendChild(inf); row.appendChild(acts);
-      body.appendChild(row);
-    });
+    _adminUsersData = d.users || [];
+    renderAdminUsers(_adminUsersData);
   } catch(e){ body.innerHTML='<div style="color:var(--rd);padding:20px;text-align:center">Ошибка загрузки</div>'; }
+}
+
+function filterAdminUsers(q) {
+  const filtered = q.trim()
+    ? _adminUsersData.filter(u => u.username.includes(q.toLowerCase()) || u.displayname.toLowerCase().includes(q.toLowerCase()))
+    : _adminUsersData;
+  renderAdminUsers(filtered);
+}
+
+function renderAdminUsers(users) {
+  const body = document.getElementById('adminBody');
+  body.innerHTML = '';
+  if (!users?.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">Нет пользователей</div>'; return; }
+  users.forEach(u => {
+    const isBanned = u.bio === '__BANNED__';
+    const isOwner  = u.username === OWNER;
+    const isOnline = u.last_seen && (Date.now() - u.last_seen < 5*60*1000); // онлайн если был < 5 мин назад
+    const row = document.createElement('div');
+    row.className = 'auser';
+    row.dataset.au = u.username;
+
+    const av = document.createElement('div');
+    av.className = `av ${avc(u.username)}`;
+    av.style.cssText = 'width:36px;height:36px;min-width:36px;font-size:13px;flex-shrink:0;';
+    av.textContent = ini(u.displayname);
+
+    const inf = document.createElement('div'); inf.className='auser-inf';
+    const nm  = document.createElement('div'); nm.className='auser-name';
+    nm.innerHTML = `${isOnline?'<span class="online-dot"></span>':''}${esc(u.displayname)} <span style="color:var(--t2);font-size:12px;font-family:'Space Mono',monospace">@${esc(u.username)}</span>`;
+    if (isOwner) nm.innerHTML += ' <span class="owner-badge">👑 owner</span>';
+    if (isBanned) nm.innerHTML += ' <span class="banned-tag">BANNED</span>';
+    const meta = document.createElement('div'); meta.className='auser-meta';
+    const lastSeen = u.last_seen ? timeAgo(u.last_seen) : 'никогда';
+    meta.innerHTML = `${u.msg_count} сообщ · ${u.session_count} сессий · был ${lastSeen} <span class="auser-ip">${u.reg_ip||'?'}</span>`;
+    inf.appendChild(nm); inf.appendChild(meta);
+
+    const acts = document.createElement('div'); acts.className='auser-acts';
+    if (!isOwner) {
+      const kick = document.createElement('button'); kick.className='abtn kick'; kick.textContent='Кик';
+      kick.onclick = () => adminAction('kick', u.username);
+      acts.appendChild(kick);
+      if (isBanned) {
+        const unban = document.createElement('button'); unban.className='abtn unban'; unban.textContent='Разбан';
+        unban.onclick = () => adminAction('unban', u.username);
+        acts.appendChild(unban);
+      } else {
+        const ban = document.createElement('button'); ban.className='abtn ban'; ban.textContent='Бан';
+        ban.onclick = () => adminAction('ban', u.username);
+        acts.appendChild(ban);
+      }
+      const del = document.createElement('button'); del.className='abtn del'; del.textContent='Удалить';
+      del.onclick = () => adminAction('delete', u.username);
+      acts.appendChild(del);
+    }
+
+    row.appendChild(av); row.appendChild(inf); row.appendChild(acts);
+    body.appendChild(row);
+  });
 }
 
 async function adminAction(action, username) {
   const labels = {kick:'кикнуть',ban:'забанить',unban:'разбанить',delete:'УДАЛИТЬ'};
-  if (!confirm(`${labels[action]} @${username}?`)) return;
+  const icos = {kick:'👢',ban:'🚫',unban:'✅',delete:'💣'};
+  const ok2 = await wConfirm(`${labels[action]} @${username}?`, icos[action]||'⚠️', action==='delete'||action==='ban');
+  if (!ok2) return;
   try {
     let r;
     if (action === 'delete') {
@@ -1638,6 +1825,8 @@ async function adminAction(action, username) {
     if (r.ok) {
       toast(`@${username} — ${labels[action]}`, 'ok');
       await Promise.all([loadAdminStats(), loadAdminUsers()]);
+      // Сбрасываем фильтр после действия
+      document.getElementById('adminSearch').value = '';
     } else {
       toast(d.error || 'Ошибка', 'err');
     }

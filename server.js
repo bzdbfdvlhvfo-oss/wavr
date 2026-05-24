@@ -36,7 +36,10 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS sessions (
       token      TEXT PRIMARY KEY,
       username   TEXT NOT NULL,
-      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000
+      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000,
+      expires_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000 + 2592000000),
+      user_agent TEXT DEFAULT '',
+      last_seen  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000
     );
     CREATE TABLE IF NOT EXISTS messages (
       id        SERIAL PRIMARY KEY,
@@ -63,13 +66,16 @@ async function initDB() {
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS type      TEXT DEFAULT 'text'`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at   BIGINT DEFAULT 0`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}'`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username  TEXT`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username   TEXT`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000 + 2592000000)`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch(e) {} }
   // Чистим старые сессии
-  try { await pool.query(`DELETE FROM sessions WHERE created_at < $1`, [Date.now() - 30*24*3600*1000]); } catch(e){}
+  try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch(e){}
   console.log('DB ready');
 }
 initDB().catch(console.error);
@@ -88,9 +94,16 @@ async function adminOnly(req, res, next) {
 async function auth(req, res, next) {
   const t = req.headers['x-token'];
   if (!t) return err(res, 'Не авторизован', 401);
-  const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [t]);
+  const r = await pool.query('SELECT username, expires_at FROM sessions WHERE token=$1', [t]);
   if (!r.rows.length) return err(res, 'Сессия истекла', 401);
-  req.username = r.rows[0].username;
+  const sess = r.rows[0];
+  if (sess.expires_at && Date.now() > parseInt(sess.expires_at)) {
+    await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
+    return err(res, 'Сессия истекла', 401);
+  }
+  req.username = sess.username;
+  // Обновляем last_seen асинхронно, не блокируем запрос
+  pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [Date.now(), t]).catch(()=>{});
   next();
 }
 
@@ -112,8 +125,10 @@ app.post('/api/register', async (req, res) => {
     if (ex.rows.length) return err(res, 'Username уже занят', 409);
     const hash = await bcrypt.hash(password, 10);
     await pool.query('INSERT INTO users (username,displayname,password,reg_ip) VALUES ($1,$2,$3,$4)', [username,displayname,hash,ip]);
+    const ua = (req.headers['user-agent']||'').slice(0, 200);
     const token = crypto.randomBytes(32).toString('hex');
-    await pool.query('INSERT INTO sessions (token,username) VALUES ($1,$2)', [token,username]);
+    const expires = Date.now() + 30*24*3600*1000;
+    await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token,username,expires,ua]);
     ok(res, { user: { username, displayname }, token });
   } catch(e) { err(res, e.message, 500); }
 });
@@ -131,8 +146,17 @@ app.post('/api/login', async (req, res) => {
     const u = r.rows[0];
     if (u.bio === '__BANNED__') return err(res, 'Аккаунт заблокирован', 403);
     if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный пароль', 401);
+    // Удаляем старые сессии этого юзера если больше 3 (защита от стакания)
+    const existing = await pool.query('SELECT token FROM sessions WHERE username=$1 ORDER BY created_at ASC', [username]);
+    if (existing.rows.length >= 3) {
+      // Удаляем самые старые, оставляем 2
+      const toDelete = existing.rows.slice(0, existing.rows.length - 2);
+      for (const s of toDelete) await pool.query('DELETE FROM sessions WHERE token=$1', [s.token]);
+    }
+    const ua = (req.headers['user-agent']||'').slice(0, 200);
     const token = crypto.randomBytes(32).toString('hex');
-    await pool.query('INSERT INTO sessions (token,username) VALUES ($1,$2)', [token,username]);
+    const expires = Date.now() + 30*24*3600*1000;
+    await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token,username,expires,ua]);
     ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio }, token });
   } catch(e) { err(res, e.message, 500); }
 });
@@ -207,7 +231,10 @@ app.post('/api/send', auth, async (req, res) => {
     const { to, text, type, fileName, fileSize } = req.body;
     const allowedTypes = ['text','image','video','file'];
     const msgType = allowedTypes.includes(type) ? type : 'text';
-    if (!to || !text?.trim()) return err(res, 'Неверные данные');
+    // Для медиа text — это base64, не trim
+    if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
+    if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
+    if (!to) return err(res, 'Неверные данные');
     if (rateLimit(`msg:${req.username}`, 60, 60*1000)) return err(res, 'Слишком много сообщений', 429);
     if (msgType !== 'text' && text.length > 22*1024*1024) return err(res, 'Файл слишком большой', 400);
     const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
@@ -405,20 +432,60 @@ app.get('/api/chats', auth, async (req, res) => {
   } catch(e) { err(res, e.message, 500); }
 });
 
+// GET MY SESSIONS
+app.get('/api/sessions', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT token, created_at, expires_at, user_agent, last_seen FROM sessions WHERE username=$1 ORDER BY last_seen DESC',
+      [req.username]
+    );
+    const currentToken = req.headers['x-token'];
+    ok(res, { sessions: r.rows.map(s => ({
+      token: s.token.slice(0,8)+'…', // показываем только начало для безопасности
+      full_token: s.token === currentToken ? s.token : null, // полный токен только текущей сессии
+      is_current: s.token === currentToken,
+      created_at: parseInt(s.created_at),
+      expires_at: parseInt(s.expires_at||0),
+      last_seen: parseInt(s.last_seen||0),
+      user_agent: s.user_agent||''
+    }))});
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// REVOKE SESSION
+app.delete('/api/sessions/:token', auth, async (req, res) => {
+  try {
+    // Юзер может удалять только свои сессии
+    await pool.query('DELETE FROM sessions WHERE token=$1 AND username=$2', [req.params.token, req.username]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// REVOKE ALL OTHER SESSIONS
+app.post('/api/sessions/revoke-others', auth, async (req, res) => {
+  try {
+    const currentToken = req.headers['x-token'];
+    await pool.query('DELETE FROM sessions WHERE username=$1 AND token!=$2', [req.username, currentToken]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
 // ── ADMIN: список всех пользователей
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT username, displayname, bio, reg_ip, created_at,
-        (SELECT COUNT(*) FROM messages WHERE from_user=users.username) as msg_count,
-        (SELECT COUNT(*) FROM sessions WHERE username=users.username) as session_count
-       FROM users ORDER BY created_at DESC`
+      `SELECT u.username, u.displayname, u.bio, u.reg_ip, u.created_at,
+        (SELECT COUNT(*) FROM messages WHERE from_user=u.username) as msg_count,
+        (SELECT COUNT(*) FROM sessions WHERE username=u.username) as session_count,
+        (SELECT MAX(last_seen) FROM sessions WHERE username=u.username) as last_seen
+       FROM users u ORDER BY u.created_at DESC`
     );
     ok(res, { users: r.rows.map(u => ({
       ...u,
       created_at: parseInt(u.created_at),
       msg_count: parseInt(u.msg_count),
-      session_count: parseInt(u.session_count)
+      session_count: parseInt(u.session_count),
+      last_seen: parseInt(u.last_seen||0)
     }))});
   } catch(e) { err(res, e.message, 500); }
 });
