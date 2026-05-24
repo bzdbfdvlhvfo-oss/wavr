@@ -320,6 +320,12 @@ app.get('/api/poll', auth, async (req, res) => {
       [key, req.username, sinceTs]
     );
 
+    // Обновления реакций для сообщений чата за последние 5 минут
+    const reactionUpdates = await pool.query(
+      `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2 - 300000`,
+      [key, Date.now()]
+    );
+
     ok(res, {
       messages: newMsgs.rows.map(m => ({
         ...m,
@@ -328,7 +334,8 @@ app.get('/api/poll', auth, async (req, res) => {
         file_size: parseInt(m.file_size || 0),
         reactions: parseReactions(m.reactions)
       })),
-      readUpdates: readUpdates.rows.map(r => ({ id: r.id, read_at: parseInt(r.read_at) }))
+      readUpdates: readUpdates.rows.map(r => ({ id: r.id, read_at: parseInt(r.read_at) })),
+      reactionUpdates: reactionUpdates.rows.map(r => ({ id: r.id, reactions: parseReactions(r.reactions) }))
     });
   } catch(e) { err(res, e.message, 500); }
 });

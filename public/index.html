@@ -242,6 +242,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
 .upprg{width:120px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden;flex-shrink:0;}
 .upfill{height:100%;background:var(--ac);border-radius:2px;transition:width .15s;}
 
+/* ── ПРЕВЬЮ МЕДИА ПЕРЕД ОТПРАВКОЙ */
+#prevModal .modal{max-width:420px;}
+#prevThumb{max-width:100%;max-height:300px;border-radius:12px;display:block;margin:0 auto 14px;object-fit:contain;}
+#prevFileBox{display:flex;align-items:center;gap:12px;padding:14px;background:var(--s2);border-radius:12px;margin-bottom:14px;}
+#prevFileIco{width:42px;height:42px;border-radius:10px;background:rgba(124,106,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+#prevFileName{font-size:14px;font-weight:600;word-break:break-all;}
+#prevFileSize{font-size:12px;color:var(--t2);margin-top:2px;}
+#prevCaption{width:100%;padding:10px 14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;
+  color:var(--tx);font-size:14px;outline:none;resize:none;font-family:'DM Sans',sans-serif;
+  line-height:1.45;transition:border-color .15s;margin-bottom:14px;}
+#prevCaption:focus{border-color:var(--ac);}
+#prevCaption::placeholder{color:var(--t3);}
+.prev-btns{display:flex;gap:8px;}
+.prev-btns .bp{flex:1;margin-top:0;padding:12px;}
+.prev-btns .bp.sec{background:var(--s2);color:var(--tx);}
+
 /* ── УТИЛИТЫ */
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);
   border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;}
@@ -385,6 +401,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   </div>
 </div>
 
+<!-- ── PREVIEW MODAL ── -->
+<div id="prevModal" style="display:none" class="mover" onclick="if(event.target===this)cancelPreview()">
+  <div class="modal" id="prevModalInner">
+    <button class="mcl" onclick="cancelPreview()">✕</button>
+    <div class="mtit">Отправить файл</div>
+    <img id="prevThumb" src="" alt="" style="display:none"/>
+    <div id="prevFileBox" style="display:none">
+      <div id="prevFileIco">📎</div>
+      <div><div id="prevFileName"></div><div id="prevFileSize"></div></div>
+    </div>
+    <textarea id="prevCaption" rows="2" placeholder="Подпись (необязательно)…" maxlength="500"></textarea>
+    <div class="prev-btns">
+      <button class="bp sec" onclick="cancelPreview()">Отмена</button>
+      <button class="bp" onclick="confirmPreview()">Отправить</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── PROFILE MODAL ── -->
 <div id="pm" style="display:none" class="mover" onclick="if(event.target===this)closePM()">
   <div class="modal">
@@ -516,7 +550,7 @@ async function doReg() {
 async function doLogout() {
   try { await fetch('/api/logout',{method:'POST',headers:hdrs()}); } catch(e){}
   sessionStorage.removeItem('wavr');
-  me=null; token=null; chatWith=null;
+  me=null; token=null; chatWith=null; _lastChatsJson=null;
   clearInterval(pollTid);
   document.getElementById('app').style.display='none';
   document.getElementById('auth').style.display='flex';
@@ -701,11 +735,16 @@ document.getElementById('sres').addEventListener('click', e => {
 // ══════════════════════════════════════════════════════
 // CHATS LIST
 // ══════════════════════════════════════════════════════
+let _lastChatsJson = null;
 async function loadChats() {
   try {
     const r = await fetch('/api/chats',{headers:hdrs()});
     const d = await r.json();
-    renderChats(d.chats||[]);
+    const list = d.chats||[];
+    const json = JSON.stringify(list);
+    if (json === _lastChatsJson) return; // ничего не изменилось
+    _lastChatsJson = json;
+    renderChats(list);
   } catch(e){}
 }
 
@@ -767,7 +806,7 @@ async function openChat(username, displayname, avatar='') {
   document.getElementById('sbox').value='';
   document.getElementById('sres').style.display='none';
   chatWith={username, displayname, avatar: avatar||_avCache[username]||''};
-  lastTs=0; seenIds=new Set(); mediaStore.clear();
+  lastTs=0; seenIds=new Set(); mediaStore.clear(); _lastChatsJson=null;
 
   setAv(document.getElementById('tbav'), chatWith.avatar||null, `av ${avc(username)}`, displayname);
   document.getElementById('tbname').textContent=displayname;
@@ -827,6 +866,13 @@ async function doPoll() {
       if (u.read_at>0) {
         const t=document.querySelector(`[data-id="${u.id}"] .mtick`);
         if (t) { t.textContent='✓✓'; t.className='mtick r'; }
+      }
+    }
+    // Обновляем реакции для существующих сообщений
+    for (const u of (d.reactionUpdates||[])) {
+      if (seenIds.has(u.id)) {
+        const rw=document.querySelector(`[data-rid="${u.id}"]`);
+        if (rw) buildReactsInto(rw, u.id, u.reactions);
       }
     }
   } catch(e){}
@@ -1037,19 +1083,19 @@ function buildReactsInto(container, msgId, reactions) {
 document.getElementById('marea').addEventListener('click', e => {
   // 1. Клик по существующей пилюле реакции (data-emoji есть)
   const pill=e.target.closest('.rpill[data-emoji]');
-  if (pill) { doReact(parseInt(pill.dataset.react), pill.dataset.emoji); return; }
+  if (pill) { doReact(pill.dataset.react, pill.dataset.emoji); return; }
 
   // 2. Кнопка открытия пикера (data-picker-btn есть, data-emoji нет)
   const rb=e.target.closest('[data-picker-btn]');
   if (rb) {
     e.stopPropagation();
-    showPicker(rb, parseInt(rb.dataset.react)); // передаём сам элемент!
+    showPicker(rb, rb.dataset.react); // передаём сам элемент!
     return;
   }
 
   // 3. Кнопка удаления
   const db=e.target.closest('[data-del]');
-  if (db) { delMsg(parseInt(db.dataset.del)); return; }
+  if (db) { delMsg(db.dataset.del); return; }
 });
 
 // ══════════════════════════════════════════════════════
@@ -1083,7 +1129,7 @@ let _pickerMsgId=null;
 function showPicker(btnEl, msgId) {
   const pick=document.getElementById('epick');
   // Если уже открыт для этого сообщения — закрываем
-  if (_pickerMsgId===msgId && pick.style.display==='block') { closePicker(); return; }
+  if (_pickerMsgId==msgId && pick.style.display==='block') { closePicker(); return; }
   _pickerMsgId=msgId;
 
   // Заполняем
@@ -1136,14 +1182,62 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape'){closePicker();clo
 
 async function doReact(msgId, emoji) {
   if (!emoji||!msgId) return;
+  // Оптимистичное обновление: меняем UI сразу
+  const rw=document.querySelector(`[data-rid="${msgId}"]`);
+  let prevReactions = null;
+  if (rw) {
+    // Считываем текущие реакции из DOM (пилюли)
+    const pills = rw.querySelectorAll('.rpill[data-emoji]');
+    const cur = {};
+    pills.forEach(p => {
+      const em = p.dataset.emoji;
+      const cnt = parseInt(p.querySelector('.rcnt')?.textContent||'0');
+      const mine = p.classList.contains('mine');
+      cur[em] = { cnt, mine };
+    });
+    // Сохраняем для отката
+    prevReactions = rw.innerHTML;
+    // Строим новое состояние оптимистично
+    const next = {};
+    let found = false;
+    pills.forEach(p => {
+      const em = p.dataset.emoji;
+      const users = [...Array(parseInt(p.querySelector('.rcnt')?.textContent||'0'))].map((_,i)=>i===0&&p.classList.contains('mine')?me.username:'other'+i);
+      // упрощённо: используем счётчик + флаг mine
+      next[em] = { cnt: parseInt(p.querySelector('.rcnt')?.textContent||'0'), mine: p.classList.contains('mine') };
+    });
+    // Применяем изменение
+    if (next[emoji]) {
+      if (next[emoji].mine) { next[emoji].cnt--; next[emoji].mine=false; if (next[emoji].cnt<=0) delete next[emoji]; }
+      else { next[emoji].cnt++; next[emoji].mine=true; }
+    } else {
+      next[emoji] = { cnt:1, mine:true };
+      found=true;
+    }
+    // Рендерим оптимистично
+    rw.innerHTML='';
+    Object.entries(next).forEach(([em,v]) => {
+      if (v.cnt<=0) return;
+      const pill=document.createElement('span');
+      pill.className='rpill'+(v.mine?' mine':'');
+      pill.dataset.react=msgId; pill.dataset.emoji=em;
+      pill.textContent=em;
+      const cnt=document.createElement('span'); cnt.className='rcnt'; cnt.textContent=v.cnt;
+      pill.appendChild(cnt); rw.appendChild(pill);
+    });
+  }
   try {
     const r=await fetch('/api/react',{method:'POST',headers:hdrs(),body:JSON.stringify({id:msgId,emoji})});
     const d=await r.json();
     if (d.ok) {
-      const rw=document.querySelector(`[data-rid="${msgId}"]`);
+      // Обновляем финальным состоянием от сервера
       if (rw) buildReactsInto(rw, msgId, d.reactions);
+    } else if (rw && prevReactions!==null) {
+      rw.innerHTML=prevReactions; // откат
     }
-  } catch(e){}
+  } catch(e){
+    if (rw && prevReactions!==null) rw.innerHTML=prevReactions; // откат при сетевой ошибке
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1164,29 +1258,68 @@ async function sendMsg() {
     const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text})});
     const d=await r.json();
     if (d.ok) {
+      seenIds.add(d.id);
       const el=document.querySelector(`[data-id="${tmpId}"]`);
-      if (el) { el.dataset.id=d.id; seenIds.add(d.id); }
+      if (el) { el.dataset.id=d.id; }
       lastTs=Math.max(lastTs,d.ts); loadChats();
     }
   } catch(e){}
 }
+
+// ── Превью перед отправкой
+let _prevFile = null, _prevDataUrl = null, _prevMsgType = null;
 
 async function onFilePick(e) {
   const f=e.target.files[0]; e.target.value='';
   if (!f||!chatWith) return;
   if (f.size>20*1024*1024) { alert('Максимум 20MB'); return; }
   const isImg=f.type.startsWith('image/'), isVid=f.type.startsWith('video/');
-  showUpload(f.name,5);
+
+  // Читаем файл для превью
+  let dataUrl = await new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=ev=>res(ev.target.result); rd.onerror=rej;
+    rd.readAsDataURL(f);
+  });
+
+  _prevFile = f;
+  _prevMsgType = isImg ? 'image' : isVid ? 'video' : 'file';
+  _prevDataUrl = dataUrl;
+
+  // Заполняем модалку
+  const thumb = document.getElementById('prevThumb');
+  const fbox  = document.getElementById('prevFileBox');
+  if (isImg) {
+    thumb.src = dataUrl; thumb.style.display='block'; fbox.style.display='none';
+  } else {
+    thumb.style.display='none'; fbox.style.display='flex';
+    const ext = f.name.split('.').pop().toLowerCase();
+    const ico = {pdf:'📄',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',zip:'🗜️',rar:'🗜️',mp3:'🎵',wav:'🎵',mp4:'🎬',webm:'🎬',mov:'🎬'}[ext]||'📎';
+    document.getElementById('prevFileIco').textContent = ico;
+    document.getElementById('prevFileName').textContent = f.name;
+    document.getElementById('prevFileSize').textContent = fsz(f.size);
+  }
+  document.getElementById('prevCaption').value = '';
+  document.getElementById('prevModal').style.display = 'flex';
+}
+
+function cancelPreview() {
+  _prevFile=null; _prevDataUrl=null; _prevMsgType=null;
+  document.getElementById('prevModal').style.display='none';
+  document.getElementById('prevThumb').src='';
+}
+
+async function confirmPreview() {
+  const f=_prevFile; const dataUrl=_prevDataUrl; const msgType=_prevMsgType;
+  const caption = document.getElementById('prevCaption').value.trim();
+  if (!f||!chatWith) { cancelPreview(); return; }
+  cancelPreview();
+
+  showUpload(f.name, 5);
   try {
-    let dataUrl=await new Promise((res,rej)=>{
-      const rd=new FileReader();
-      rd.onprogress=ev=>{ if(ev.lengthComputable)showUpload(f.name,Math.round(ev.loaded/ev.total*70)); };
-      rd.onload=ev=>res(ev.target.result); rd.onerror=rej;
-      rd.readAsDataURL(f);
-    });
-    let msgType='file', sendData=dataUrl;
-    if (isImg) {
-      msgType='image'; showUpload(f.name,75);
+    let sendData = dataUrl;
+    if (msgType==='image') {
+      showUpload(f.name, 30);
       const img=new Image();
       await new Promise(res=>{img.onload=res;img.src=dataUrl;});
       const c=document.createElement('canvas');
@@ -1194,18 +1327,32 @@ async function onFilePick(e) {
       if(w>M||h>M){if(w>h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;}}
       c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
       sendData=c.toDataURL('image/jpeg',.82);
-    } else if (isVid) { msgType='video'; }
-    showUpload(f.name,90);
+    }
+    showUpload(f.name, 75);
+    // Если есть подпись — отправляем отдельным текстовым сообщением перед медиа
     const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({
       to:chatWith.username,text:sendData,type:msgType,fileName:f.name,fileSize:f.size
     })});
     const d=await r.json();
     if (d.ok) {
       mediaStore.set(d.id,sendData);
+      seenIds.add(d.id);
       const fake={id:d.id,from:me.username,displayname:me.displayname,text:sendData,
         type:msgType,ts:d.ts,deleted:false,read_at:0,reactions:{},file_name:f.name,file_size:f.size};
-      seenIds.add(d.id); appendMsgs([fake]);
-      lastTs=Math.max(lastTs,d.ts); loadChats();
+      appendMsgs([fake]);
+      lastTs=Math.max(lastTs,d.ts);
+      // Подпись отправляем отдельно если есть
+      if (caption) {
+        const r2=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text:caption})});
+        const d2=await r2.json();
+        if (d2.ok) {
+          seenIds.add(d2.id);
+          const fake2={id:d2.id,from:me.username,displayname:me.displayname,text:caption,
+            type:'text',ts:d2.ts,deleted:false,read_at:0,reactions:{}};
+          appendMsgs([fake2]); lastTs=Math.max(lastTs,d2.ts);
+        }
+      }
+      _lastChatsJson=null; loadChats();
     }
   } catch(err){ alert('Ошибка: '+err.message); }
   hideUpload();
