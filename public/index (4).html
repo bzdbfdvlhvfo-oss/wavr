@@ -292,6 +292,8 @@
     </label>
     <div class="form-group"><label class="form-label">Имя</label>
       <input class="form-input" id="pm-dn" type="text" /></div>
+    <div class="form-group"><label class="form-label">Username</label>
+      <input class="form-input" id="pm-un-edit" type="text" placeholder="new_username" /></div>
     <div class="form-group"><label class="form-label">О себе</label>
       <input class="form-input" id="pm-bio" type="text" placeholder="Расскажи о себе..." /></div>
     <button class="btn-primary" onclick="saveProfile()">Сохранить</button>
@@ -389,13 +391,14 @@ function enterApp(){
   document.getElementById('my-un').textContent='@'+me.username;
   loadChats();
   clearInterval(pollTid);
-  pollTid=setInterval(()=>{ if(chatWith) fetchMsgs(false); loadChats(); }, 2000);
+  pollTid=setInterval(()=>{ if(chatWith) fetchMsgs(false); loadChats(); }, 1000);
 }
 
 // PROFILE MODAL
 function openProfileModal() {
   document.getElementById('pm-title').textContent = 'Мой профиль';
   document.getElementById('pm-dn').value = me.displayname || '';
+  document.getElementById('pm-un-edit').value = me.username || '';
   document.getElementById('pm-bio').value = me.bio || '';
   const av = document.getElementById('pm-av');
   setAvEl(av, me.avatar, `av-upload av-lg ${avc(me.username)}`, me.displayname);
@@ -427,13 +430,16 @@ function onAvatarChange(e) {
 async function saveProfile() {
   const dn = document.getElementById('pm-dn').value.trim();
   const bio = document.getElementById('pm-bio').value.trim();
+  const newUn = document.getElementById('pm-un-edit').value.trim().toLowerCase();
   const errEl = document.getElementById('pm-err'); errEl.textContent='';
   if(!dn){errEl.textContent='Имя не может быть пустым';return;}
   try {
-    const r = await fetch('/api/profile',{method:'POST',headers:hdrs(),
-      body:JSON.stringify({displayname:dn,bio,avatar:newAvatar||me.avatar||null})});
+    const body = {displayname:dn,bio,avatar:newAvatar||me.avatar||null};
+    if(newUn && newUn !== me.username) body.newUsername = newUn;
+    const r = await fetch('/api/profile',{method:'POST',headers:hdrs(),body:JSON.stringify(body)});
     const d = await r.json(); if(!r.ok) throw new Error(d.error);
     me.displayname=dn; me.bio=bio; if(newAvatar) me.avatar=newAvatar;
+    if(d.username && d.username !== me.username){ me.username=d.username; document.getElementById('my-un').textContent='@'+me.username; }
     newAvatar=null;
     sessionStorage.setItem('wavr',JSON.stringify({me,token}));
     setAvEl(document.getElementById('my-av'), me.avatar, `av-lg av-online ${avc(me.username)}`, me.displayname);
