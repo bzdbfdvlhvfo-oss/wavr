@@ -355,10 +355,10 @@ app.get('/api/poll', auth, async (req, res) => {
       [key, req.username, sinceTs]
     );
 
-    // Обновления реакций для сообщений чата за последние 5 минут
+    // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от sinceTs)
     const reactionUpdates = await pool.query(
       `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2 - 300000`,
-      [key, Date.now()]
+      [key, sinceTs || Date.now()]
     );
 
     ok(res, {

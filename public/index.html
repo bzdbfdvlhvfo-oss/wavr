@@ -349,8 +349,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   .astat{min-width:70px;padding:8px 10px;}
   #toast-wrap{top:auto;bottom:calc(80px + var(--sb));right:8px;left:8px;}
   .toast{min-width:0;}
-  /* Мобайл: кнопки действий всегда видны через touch */
-  .macts{display:flex;}
+  /* Мобайл: кнопки действий только через long press */
+  /* убрано: .macts{display:flex} — иначе торчат у каждого сообщения */
+  .cdel{opacity:1 !important;}  /* кнопка удаления чата видна на тач */
 }
 
 /* ── CONFIRM DIALOG (замена системного confirm()) */
@@ -681,8 +682,16 @@ function wConfirm(msg, ico='⚠️', dangerous=true) {
     document.getElementById('confirmDlg').classList.add('show');
   });
 }
-// Закрытие по Escape
-document.addEventListener('keydown', e=>{ if(e.key==='Escape' && _cdlgResolve) cdlgResolve(false); });
+// Закрытие по Escape — приоритет: confirmDlg → lb → adminPanel → prevModal → pm → um
+document.addEventListener('keydown', e=>{
+  if (e.key !== 'Escape') return;
+  if (_cdlgResolve) { cdlgResolve(false); return; }
+  if (document.getElementById('lb').style.display==='flex') { closeLB(); return; }
+  if (document.getElementById('adminPanel').style.display!=='none') { closeAdmin(); return; }
+  if (document.getElementById('prevModal').style.display==='flex') { cancelPreview(); return; }
+  if (document.getElementById('pm').style.display==='flex') { closePM(); return; }
+  if (document.getElementById('um').style.display==='flex') { closeUM(); return; }
+});
 
 // ── Утилиты
 const avc = u => AVC[(u||'').split('').reduce((h,c)=>(h*31+c.charCodeAt(0))&0xffff,0) % AVC.length];
@@ -753,14 +762,14 @@ async function doReg() {
 
 async function doLogout() {
   try { await fetch('/api/logout',{method:'POST',headers:hdrs()}); } catch(e){}
-  sessionStorage.removeItem('wavr');
+  localStorage.removeItem('wavr');
   me=null; token=null; chatWith=null; _lastChatsJson=null;
   clearInterval(pollTid);
   document.getElementById('app').style.display='none';
   document.getElementById('auth').style.display='flex';
 }
 
-function saveSession() { sessionStorage.setItem('wavr', JSON.stringify({me,token})); }
+function saveSession() { localStorage.setItem('wavr', JSON.stringify({me,token})); }
 
 function enterApp() {
   document.getElementById('auth').style.display='none';
@@ -785,6 +794,16 @@ async function tick() {
     const tasks = [loadChats()];
     if (chatWith) tasks.push(doPoll());
     await Promise.all(tasks);
+  } catch(e) {
+    if (e && e.status === 401) {
+      // Токен истёк — разлогиниваем
+      localStorage.removeItem('wavr');
+      me=null; token=null; chatWith=null; _lastChatsJson=null;
+      clearInterval(pollTid);
+      document.getElementById('app').style.display='none';
+      document.getElementById('auth').style.display='flex';
+      toast('Сессия истекла, войдите снова', 'err', 4000);
+    }
   } finally { _tickBusy=false; }
 }
 
@@ -796,7 +815,7 @@ function profTab(tab) {
   _curProfTab = tab;
   document.getElementById('pmEdit').style.display    = tab==='edit'     ? '' : 'none';
   document.getElementById('pmSessions').style.display = tab==='sessions' ? '' : 'none';
-  document.querySelectorAll('.prof-tab').forEach((b,i)=>b.classList.toggle('on', (i===0)====(tab==='edit')));
+  document.querySelectorAll('.prof-tab').forEach((b,i)=>b.classList.toggle('on', tab==='edit' ? i===0 : i===1));
   if (tab==='sessions') loadSessions();
 }
 
@@ -1021,13 +1040,14 @@ let _lastChatsJson = null;
 async function loadChats() {
   try {
     const r = await fetch('/api/chats',{headers:hdrs()});
+    if (r.status === 401) { const e = new Error('401'); e.status=401; throw e; }
     const d = await r.json();
     const list = d.chats||[];
     const json = JSON.stringify(list);
-    if (json === _lastChatsJson) return; // ничего не изменилось
+    if (json === _lastChatsJson) return;
     _lastChatsJson = json;
     renderChats(list);
-  } catch(e){}
+  } catch(e){ if(e.status===401) throw e; }
 }
 
 function renderChats(list) {
@@ -1137,6 +1157,7 @@ async function doPoll() {
   if (!chatWith) return;
   try {
     const r = await fetch(`/api/poll?b=${encodeURIComponent(chatWith.username)}&since=${lastTs}`,{headers:hdrs()});
+    if (r.status === 401) { const e = new Error('401'); e.status=401; throw e; }
     const d = await r.json();
     const fresh=(d.messages||[]).filter(m=>!seenIds.has(m.id));
     if (fresh.length) {
@@ -1157,7 +1178,7 @@ async function doPoll() {
         if (rw) buildReactsInto(rw, u.id, u.reactions);
       }
     }
-  } catch(e){}
+  } catch(e){ if(e.status===401) throw e; }
 }
 
 function renderAll(msgs) {
@@ -1630,7 +1651,6 @@ async function confirmPreview() {
           const fake2={id:d2.id,from:me.username,displayname:me.displayname,text:caption,
             type:'text',ts:d2.ts,deleted:false,read_at:0,reactions:{}};
           appendMsgs([fake2]); // appendMsgs сама добавит в seenIds
-          seenIds.add(d2.id);  // доп. гарантия от poll-дубля
           lastTs=Math.max(lastTs,d2.ts);
         }
       }
@@ -1723,7 +1743,9 @@ async function openAdmin() {
   if (me.username !== OWNER) return;
   document.getElementById('adminSearch').value = '';
   document.getElementById('adminPanel').style.display='flex';
-  await Promise.all([loadAdminStats(), loadAdminUsers()]);
+  // Грузим в фоне — не блокируем UI
+  loadAdminStats();
+  loadAdminUsers();
 }
 function closeAdmin() { document.getElementById('adminPanel').style.display='none'; }
 
@@ -1824,7 +1846,9 @@ async function adminAction(action, username) {
     const d = await r.json();
     if (r.ok) {
       toast(`@${username} — ${labels[action]}`, 'ok');
-      await Promise.all([loadAdminStats(), loadAdminUsers()]);
+      // Обновляем в фоне — не блокируем UI
+      loadAdminStats();
+      loadAdminUsers();
       // Сбрасываем фильтр после действия
       document.getElementById('adminSearch').value = '';
     } else {
@@ -1842,10 +1866,10 @@ function autoH(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHe
 // ══════════════════════════════════════════════════════
 // BOOT — восстанавливаем сессию
 // ══════════════════════════════════════════════════════
-const _sv=sessionStorage.getItem('wavr');
+const _sv=localStorage.getItem('wavr');
 if (_sv) {
   try { const s=JSON.parse(_sv); me=s.me; token=s.token; enterApp(); }
-  catch(e){ sessionStorage.removeItem('wavr'); }
+  catch(e){ localStorage.removeItem('wavr'); }
 }
 </script>
 </body>
