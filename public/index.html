@@ -262,7 +262,76 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);
   border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;}
 @keyframes sp{to{transform:rotate(360deg)}}
-@keyframes mIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes mIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ── УЛУЧШЕНИЯ UI — фоновый паттерн чата */
+.marea{background:
+  radial-gradient(ellipse 80% 40% at 50% 100%,#1a1030 0%,transparent 70%),
+  var(--bg);}
+
+/* ── TYPING INDICATOR */
+.typing-dot{display:inline-flex;gap:3px;align-items:center;padding:10px 14px;}
+.typing-dot span{width:6px;height:6px;border-radius:50%;background:var(--t2);
+  animation:tdot 1.2s ease-in-out infinite;}
+.typing-dot span:nth-child(2){animation-delay:.2s;}
+.typing-dot span:nth-child(3){animation-delay:.4s;}
+@keyframes tdot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+
+/* ── TOAST УВЕДОМЛЕНИЯ */
+#toast-wrap{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{background:var(--sf);border:1px solid var(--br);border-radius:12px;padding:10px 16px;
+  font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(0,0,0,.6);
+  animation:slideUp .2s ease;min-width:220px;max-width:320px;pointer-events:none;}
+.toast.ok{border-color:#4ade8055;}
+.toast.err{border-color:#ff4a6a55;}
+.toast-ico{font-size:16px;flex-shrink:0;}
+
+/* ── ОНЛАЙН ИНДИКАТОР В ТОПБАРЕ */
+.tb-online{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--on);
+  margin-right:4px;flex-shrink:0;vertical-align:middle;}
+
+/* ── УЛУЧШЕННЫЙ SIDEBAR — эффект при ховере на чат */
+.ci{transition:background .12s,transform .08s;}
+.ci:active{transform:scale(.98);}
+
+/* ── OWNER BADGE */
+.owner-badge{display:inline-flex;align-items:center;gap:3px;background:linear-gradient(135deg,#7c6aff22,#ff6a9b22);
+  border:1px solid var(--ac);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;
+  color:var(--ac);letter-spacing:.06em;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
+
+/* ── ADMIN PANEL */
+#adminPanel{display:none;}
+#adminPanel.mover{display:flex;}
+.admin-modal{background:var(--sf);border:1px solid var(--br);border-radius:20px;
+  width:100%;max-width:600px;max-height:85dvh;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+.admin-head{padding:20px 24px 16px;border-bottom:1px solid var(--br);flex-shrink:0;}
+.admin-title{font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.admin-stats{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.astat{flex:1;min-width:90px;background:var(--s2);border-radius:10px;padding:10px 14px;text-align:center;}
+.astat-n{font-size:22px;font-weight:700;font-family:'Space Mono',monospace;color:var(--ac);}
+.astat-l{font-size:11px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;}
+.admin-body{overflow-y:auto;flex:1;padding:12px 16px;}
+.admin-body::-webkit-scrollbar{width:4px;}
+.admin-body::-webkit-scrollbar-thumb{background:var(--br);border-radius:2px;}
+.auser{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+  background:var(--s2);margin-bottom:6px;transition:background .1s;}
+.auser:hover{background:var(--s3);}
+.auser-inf{flex:1;min-width:0;}
+.auser-name{font-size:14px;font-weight:600;}
+.auser-meta{font-size:11px;color:var(--t2);margin-top:2px;font-family:'Space Mono',monospace;}
+.auser-acts{display:flex;gap:5px;flex-shrink:0;}
+.abtn{padding:5px 10px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;}
+.abtn.kick{background:var(--s3);color:var(--t2);}
+.abtn.kick:hover{background:#ffaa6a22;color:#ffaa6a;}
+.abtn.ban{background:var(--s3);color:var(--t2);}
+.abtn.ban:hover{background:#ff4a6a22;color:var(--rd);}
+.abtn.unban{background:#4ade8022;color:#4ade80;}
+.abtn.del{background:var(--s3);color:var(--t2);}
+.abtn.del:hover{background:#ff4a6a33;color:var(--rd);}
+.banned-tag{font-size:10px;background:#ff4a6a22;color:var(--rd);border-radius:6px;
+  padding:2px 6px;font-weight:700;letter-spacing:.05em;}
 
 /* ── МОБАЙЛ */
 .backbtn{display:none;}
@@ -276,6 +345,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   .modal{padding:24px 18px;}
   .mab{width:34px;height:34px;}
   .ci{padding:11px 10px;}
+  .admin-stats{gap:6px;}
+  .astat{min-width:70px;padding:8px 10px;}
+  #toast-wrap{top:auto;bottom:80px;right:8px;left:8px;}
+  .toast{min-width:0;}
 }
 </style>
 </head>
@@ -330,6 +403,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
             <div class="uname" id="mydn"></div>
             <div class="utag" id="myun"></div>
           </div>
+          <button class="ib" id="adminBtn" onclick="openAdmin()" title="Админ-панель" style="display:none">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </button>
           <button class="ib dng" onclick="doLogout()" title="Выйти">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -447,6 +525,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   </div>
 </div>
 
+<!-- ── TOAST ── -->
+<div id="toast-wrap"></div>
+
+<!-- ── ADMIN PANEL ── -->
+<div id="adminPanel" class="mover" onclick="if(event.target===this)closeAdmin()">
+  <div class="admin-modal">
+    <div class="admin-head">
+      <button class="mcl" onclick="closeAdmin()">✕</button>
+      <div class="admin-title">⚡ Панель владельца</div>
+      <div class="admin-stats" id="adminStats">
+        <div class="astat"><div class="astat-n" id="as-users">—</div><div class="astat-l">Юзеры</div></div>
+        <div class="astat"><div class="astat-n" id="as-msgs">—</div><div class="astat-l">Сообщений</div></div>
+        <div class="astat"><div class="astat-n" id="as-today">—</div><div class="astat-l">Сегодня</div></div>
+        <div class="astat"><div class="astat-n" id="as-sess">—</div><div class="astat-l">Сессий</div></div>
+      </div>
+    </div>
+    <div class="admin-body" id="adminBody">
+      <div style="text-align:center;padding:30px;color:var(--t3)"><span class="spin" style="border-color:var(--br);border-top-color:var(--ac)"></span></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── LIGHTBOX ── -->
 <div id="lb" onclick="if(event.target===this)closeLB()">
   <button class="lbcl" onclick="closeLB()">✕</button>
@@ -479,6 +579,17 @@ const _avCache = {};
 
 const EMOJIS = ['👍','❤️','😂','😮','😢','🔥','👎','🎉','😍','💀','🤝','✨','😤','🥹','💯'];
 const AVC    = ['c0','c1','c2','c3','c4'];
+const OWNER  = 'timur';
+
+// ── Toast уведомления
+function toast(msg, type='ok', ms=2800) {
+  const w = document.getElementById('toast-wrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span class="toast-ico">${type==='ok'?'✓':'✕'}</span><span>${msg}</span>`;
+  w.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),320); }, ms);
+}
 
 // ── Утилиты
 const avc = u => AVC[(u||'').split('').reduce((h,c)=>(h*31+c.charCodeAt(0))&0xffff,0) % AVC.length];
@@ -565,6 +676,10 @@ function enterApp() {
   if (me.avatar) _avCache[me.username] = me.avatar;
   document.getElementById('mydn').textContent = me.displayname;
   document.getElementById('myun').textContent = '@'+me.username;
+  // Показываем кнопку админки только владельцу
+  if (me.username === OWNER) {
+    document.getElementById('adminBtn').style.display='flex';
+  }
   loadChats();
   clearInterval(pollTid);
   pollTid = setInterval(tick, 2000);
@@ -659,6 +774,7 @@ async function saveP() {
     setAv(document.getElementById('myav'), me.avatar, `av-lg av-on ${avc(me.username)}`, me.displayname);
     document.getElementById('mydn').textContent=me.displayname;
     closePM();
+    toast('Профиль сохранён');
   } catch(e) { el.textContent=e.message; }
 }
 
@@ -1410,6 +1526,7 @@ async function delMsg(id){
         const reacts=mw.querySelector('.reacts');
         if (reacts) reacts.innerHTML='';
       }
+      toast('Сообщение удалено');
       loadChats();
     }
   } catch(e){}
@@ -1430,6 +1547,101 @@ async function delChatFrom(u){
     if (chatWith?.username===u) closeChat();
     loadChats();
   } catch(e){}
+}
+
+// ══════════════════════════════════════════════════════
+// ADMIN PANEL
+// ══════════════════════════════════════════════════════
+async function openAdmin() {
+  if (me.username !== OWNER) return;
+  document.getElementById('adminPanel').style.display='flex';
+  await Promise.all([loadAdminStats(), loadAdminUsers()]);
+}
+function closeAdmin() { document.getElementById('adminPanel').style.display='none'; }
+
+async function loadAdminStats() {
+  try {
+    const r = await fetch('/api/admin/stats', {headers:hdrs()});
+    const d = await r.json();
+    document.getElementById('as-users').textContent = d.users ?? '—';
+    document.getElementById('as-msgs').textContent  = d.messages ?? '—';
+    document.getElementById('as-today').textContent = d.today ?? '—';
+    document.getElementById('as-sess').textContent  = d.sessions ?? '—';
+  } catch(e){}
+}
+
+async function loadAdminUsers() {
+  const body = document.getElementById('adminBody');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)"><span class="spin" style="border-color:var(--br);border-top-color:var(--ac)"></span></div>';
+  try {
+    const r = await fetch('/api/admin/users', {headers:hdrs()});
+    const d = await r.json();
+    body.innerHTML = '';
+    if (!d.users?.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">Нет пользователей</div>'; return; }
+    d.users.forEach(u => {
+      const isBanned = u.bio === '__BANNED__';
+      const isOwner  = u.username === OWNER;
+      const row = document.createElement('div');
+      row.className = 'auser';
+      row.dataset.au = u.username;
+
+      const av = document.createElement('div');
+      av.className = `av ${avc(u.username)}`;
+      av.style.cssText = 'width:36px;height:36px;min-width:36px;font-size:13px;flex-shrink:0;';
+      av.textContent = ini(u.displayname);
+
+      const inf = document.createElement('div'); inf.className='auser-inf';
+      const nm  = document.createElement('div'); nm.className='auser-name';
+      nm.innerHTML = `${esc(u.displayname)} <span style="color:var(--t2);font-size:12px;font-family:'Space Mono',monospace">@${esc(u.username)}</span>`;
+      if (isOwner) nm.innerHTML += ' <span class="owner-badge">👑 owner</span>';
+      if (isBanned) nm.innerHTML += ' <span class="banned-tag">BANNED</span>';
+      const meta = document.createElement('div'); meta.className='auser-meta';
+      meta.textContent = `${u.msg_count} сообщ · ${u.session_count} сессий · ${new Date(u.created_at).toLocaleDateString('ru-RU')}`;
+      inf.appendChild(nm); inf.appendChild(meta);
+
+      const acts = document.createElement('div'); acts.className='auser-acts';
+      if (!isOwner) {
+        const kick = document.createElement('button'); kick.className='abtn kick'; kick.textContent='Кик';
+        kick.onclick = () => adminAction('kick', u.username);
+        acts.appendChild(kick);
+        if (isBanned) {
+          const unban = document.createElement('button'); unban.className='abtn unban'; unban.textContent='Разбан';
+          unban.onclick = () => adminAction('unban', u.username);
+          acts.appendChild(unban);
+        } else {
+          const ban = document.createElement('button'); ban.className='abtn ban'; ban.textContent='Бан';
+          ban.onclick = () => adminAction('ban', u.username);
+          acts.appendChild(ban);
+        }
+        const del = document.createElement('button'); del.className='abtn del'; del.textContent='Удалить';
+        del.onclick = () => adminAction('delete', u.username);
+        acts.appendChild(del);
+      }
+
+      row.appendChild(av); row.appendChild(inf); row.appendChild(acts);
+      body.appendChild(row);
+    });
+  } catch(e){ body.innerHTML='<div style="color:var(--rd);padding:20px;text-align:center">Ошибка загрузки</div>'; }
+}
+
+async function adminAction(action, username) {
+  const labels = {kick:'кикнуть',ban:'забанить',unban:'разбанить',delete:'УДАЛИТЬ'};
+  if (!confirm(`${labels[action]} @${username}?`)) return;
+  try {
+    let r;
+    if (action === 'delete') {
+      r = await fetch(`/api/admin/user/${username}`, {method:'DELETE', headers:hdrs()});
+    } else {
+      r = await fetch(`/api/admin/${action}/${username}`, {method:'POST', headers:hdrs()});
+    }
+    const d = await r.json();
+    if (r.ok) {
+      toast(`@${username} — ${labels[action]}`, 'ok');
+      await Promise.all([loadAdminStats(), loadAdminUsers()]);
+    } else {
+      toast(d.error || 'Ошибка', 'err');
+    }
+  } catch(e){ toast('Сетевая ошибка', 'err'); }
 }
 
 // ══════════════════════════════════════════════════════

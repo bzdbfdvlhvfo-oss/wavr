@@ -79,6 +79,12 @@ const ok  = (res, d) => res.json(d);
 const err = (res, msg, s=400) => res.status(s).json({ error: msg });
 const parseReactions = (raw) => { try { return JSON.parse(raw || '{}'); } catch(e) { return {}; } };
 
+const OWNER = 'timur';
+async function adminOnly(req, res, next) {
+  if (req.username !== OWNER) return err(res, 'Нет прав', 403);
+  next();
+}
+
 async function auth(req, res, next) {
   const t = req.headers['x-token'];
   if (!t) return err(res, 'Не авторизован', 401);
@@ -123,6 +129,7 @@ app.post('/api/login', async (req, res) => {
     const r = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
     if (!r.rows.length) return err(res, 'Пользователь не найден', 401);
     const u = r.rows[0];
+    if (u.bio === '__BANNED__') return err(res, 'Аккаунт заблокирован', 403);
     if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный пароль', 401);
     const token = crypto.randomBytes(32).toString('hex');
     await pool.query('INSERT INTO sessions (token,username) VALUES ($1,$2)', [token,username]);
@@ -395,6 +402,82 @@ app.get('/api/chats', auth, async (req, res) => {
       });
     }
     ok(res, { chats });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: список всех пользователей
+app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT username, displayname, bio, reg_ip, created_at,
+        (SELECT COUNT(*) FROM messages WHERE from_user=users.username) as msg_count,
+        (SELECT COUNT(*) FROM sessions WHERE username=users.username) as session_count
+       FROM users ORDER BY created_at DESC`
+    );
+    ok(res, { users: r.rows.map(u => ({
+      ...u,
+      created_at: parseInt(u.created_at),
+      msg_count: parseInt(u.msg_count),
+      session_count: parseInt(u.session_count)
+    }))});
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: удалить аккаунт
+app.delete('/api/admin/user/:username', auth, adminOnly, async (req, res) => {
+  try {
+    const u = req.params.username;
+    if (u === OWNER) return err(res, 'Нельзя удалить владельца', 403);
+    await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
+    await pool.query('DELETE FROM messages WHERE from_user=$1 OR to_user=$1', [u]);
+    await pool.query('DELETE FROM users WHERE username=$1', [u]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: кик (удалить все сессии = разлогинить)
+app.post('/api/admin/kick/:username', auth, adminOnly, async (req, res) => {
+  try {
+    const u = req.params.username;
+    if (u === OWNER) return err(res, 'Нельзя кикнуть владельца', 403);
+    await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: забанить (удалить сессии + записать в banned список)
+app.post('/api/admin/ban/:username', auth, adminOnly, async (req, res) => {
+  try {
+    const u = req.params.username;
+    if (u === OWNER) return err(res, 'Нельзя забанить владельца', 403);
+    // Храним бан как пустой bio с маркером — простой способ без новой таблицы
+    await pool.query('UPDATE users SET bio=$1 WHERE username=$2', ['__BANNED__', u]);
+    await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: разбанить
+app.post('/api/admin/unban/:username', auth, adminOnly, async (req, res) => {
+  try {
+    await pool.query("UPDATE users SET bio='' WHERE username=$1", [req.params.username]);
+    ok(res, { ok: true });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// ── ADMIN: статистика
+app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
+  try {
+    const users = await pool.query('SELECT COUNT(*) as c FROM users');
+    const msgs  = await pool.query('SELECT COUNT(*) as c FROM messages');
+    const sess  = await pool.query('SELECT COUNT(*) as c FROM sessions');
+    const today = await pool.query('SELECT COUNT(*) as c FROM messages WHERE ts > $1', [Date.now()-86400000]);
+    ok(res, {
+      users: parseInt(users.rows[0].c),
+      messages: parseInt(msgs.rows[0].c),
+      sessions: parseInt(sess.rows[0].c),
+      today: parseInt(today.rows[0].c)
+    });
   } catch(e) { err(res, e.message, 500); }
 });
 
