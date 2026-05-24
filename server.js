@@ -5,96 +5,84 @@ const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
-app.use(express.json({ limit: '20mb' })); // увеличен для видеокружков
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-// Rate limiting — простой in-memory
-const rateLimits = new Map();
-function rateLimit(key, max, windowMs) {
+// Rate limiting
+const rl = new Map();
+function rateLimit(key, max, ms) {
   const now = Date.now();
-  const entry = rateLimits.get(key) || { count: 0, reset: now + windowMs };
-  if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
-  entry.count++;
-  rateLimits.set(key, entry);
-  return entry.count > max;
+  const e = rl.get(key) || { n: 0, r: now + ms };
+  if (now > e.r) { e.n = 0; e.r = now + ms; }
+  e.n++;
+  rl.set(key, e);
+  return e.n > max;
 }
-// Чистим rate limit каждые 5 минут
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of rateLimits) { if (now > v.reset) rateLimits.delete(k); }
-}, 5 * 60 * 1000);
+setInterval(() => { const now = Date.now(); for (const [k,v] of rl) if (now > v.r) rl.delete(k); }, 5*60*1000);
 
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
-      username     TEXT PRIMARY KEY,
-      displayname  TEXT NOT NULL,
-      password     TEXT NOT NULL,
-      avatar       TEXT,
-      bio          TEXT DEFAULT '',
-      reg_ip       TEXT DEFAULT 'unknown',
-      created_at   BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+      username    TEXT PRIMARY KEY,
+      displayname TEXT NOT NULL,
+      password    TEXT NOT NULL,
+      avatar      TEXT,
+      bio         TEXT DEFAULT '',
+      reg_ip      TEXT DEFAULT 'unknown',
+      created_at  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000
     );
     CREATE TABLE IF NOT EXISTS sessions (
       token      TEXT PRIMARY KEY,
       username   TEXT NOT NULL,
-      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000
     );
     CREATE TABLE IF NOT EXISTS messages (
-      id         SERIAL PRIMARY KEY,
-      chat_key   TEXT NOT NULL,
-      from_user  TEXT NOT NULL,
-      from_dn    TEXT NOT NULL,
-      to_user    TEXT NOT NULL,
-      text       TEXT NOT NULL,
-      type       TEXT DEFAULT 'text',
-      ts         BIGINT NOT NULL,
-      deleted    BOOLEAN DEFAULT FALSE,
-      read_by    TEXT DEFAULT ''
+      id        SERIAL PRIMARY KEY,
+      chat_key  TEXT NOT NULL,
+      from_user TEXT NOT NULL,
+      from_dn   TEXT NOT NULL,
+      to_user   TEXT NOT NULL,
+      text      TEXT NOT NULL,
+      type      TEXT DEFAULT 'text',
+      ts        BIGINT NOT NULL,
+      deleted   BOOLEAN DEFAULT FALSE,
+      read_at   BIGINT DEFAULT 0,
+      reactions TEXT DEFAULT '{}'
     );
-    CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_key, ts);
-    CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_key, ts);
+    CREATE INDEX IF NOT EXISTS idx_sessions  ON sessions(token);
   `);
 
-  // Миграции
-  const migrations = [
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT ''`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reg_ip TEXT DEFAULT 'unknown'`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text'`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_by TEXT DEFAULT ''`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username TEXT`,
+  const migs = [
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS avatar    TEXT`,
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS bio       TEXT DEFAULT ''`,
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS reg_ip    TEXT DEFAULT 'unknown'`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted   BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS type      TEXT DEFAULT 'text'`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at   BIGINT DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}'`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username  TEXT`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`,
   ];
-  for (const m of migrations) {
-    try { await pool.query(m); } catch(e) {}
-  }
-
-  // Чистим старые сессии (>30 дней) при старте
-  try {
-    await pool.query(`DELETE FROM sessions WHERE created_at < $1`, [Date.now() - 30 * 24 * 60 * 60 * 1000]);
-  } catch(e) {}
-
+  for (const m of migs) { try { await pool.query(m); } catch(e) {} }
+  // Чистим старые сессии
+  try { await pool.query(`DELETE FROM sessions WHERE created_at < $1`, [Date.now() - 30*24*3600*1000]); } catch(e){}
   console.log('DB ready');
 }
-
 initDB().catch(console.error);
 
-function chatKey(a, b) { return [a, b].sort().join(':'); }
-function ok(res, data) { res.json(data); }
-function err(res, msg, status = 400) { res.status(status).json({ error: msg }); }
+const chatKey = (a, b) => [a, b].sort().join(':');
+const ok  = (res, d) => res.json(d);
+const err = (res, msg, s=400) => res.status(s).json({ error: msg });
+const parseReactions = (raw) => { try { return JSON.parse(raw || '{}'); } catch(e) { return {}; } };
 
-// Auth middleware
 async function auth(req, res, next) {
-  const token = req.headers['x-token'];
-  if (!token) return err(res, 'Не авторизован', 401);
-  const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
+  const t = req.headers['x-token'];
+  if (!t) return err(res, 'Не авторизован', 401);
+  const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [t]);
   if (!r.rows.length) return err(res, 'Сессия истекла', 401);
   req.username = r.rows[0].username;
   next();
@@ -104,147 +92,155 @@ async function auth(req, res, next) {
 app.post('/api/register', async (req, res) => {
   try {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
-    if (rateLimit(`reg:${ip}`, 5, 60 * 60 * 1000)) return err(res, 'Слишком много попыток, подожди час', 429);
-
+    if (rateLimit(`reg:${ip}`, 5, 3600*1000)) return err(res, 'Слишком много попыток', 429);
     let { username, password, displayname } = req.body;
-    username = (username || '').toLowerCase().trim();
-    displayname = (displayname || '').trim();
-    if (!username || !password || !displayname) return err(res, 'Заполните все поля');
-    if (!/^[a-z0-9_]{3,20}$/.test(username)) return err(res, 'Username: a-z, 0-9, _ (3–20 символов)');
+    username = (username||'').toLowerCase().trim();
+    displayname = (displayname||'').trim();
+    if (!username||!password||!displayname) return err(res, 'Заполните все поля');
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) return err(res, 'Username: a-z 0-9 _ (3–20 символов)');
     if (password.length < 6) return err(res, 'Пароль минимум 6 символов');
     if (displayname.length > 50) return err(res, 'Имя слишком длинное');
-
-    const ipCheck = await pool.query('SELECT COUNT(*) FROM users WHERE reg_ip=$1', [ip]);
-    if (parseInt(ipCheck.rows[0].count) >= 3) return err(res, 'Максимум 3 аккаунта с одного IP', 403);
-
-    const existing = await pool.query('SELECT username FROM users WHERE username=$1', [username]);
-    if (existing.rows.length > 0) return err(res, 'Username уже занят', 409);
+    const ipCnt = await pool.query('SELECT COUNT(*) FROM users WHERE reg_ip=$1', [ip]);
+    if (parseInt(ipCnt.rows[0].count) >= 3) return err(res, 'Максимум 3 аккаунта с одного IP', 403);
+    const ex = await pool.query('SELECT username FROM users WHERE username=$1', [username]);
+    if (ex.rows.length) return err(res, 'Username уже занят', 409);
     const hash = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, displayname, password, reg_ip) VALUES ($1, $2, $3, $4)',
-      [username, displayname, hash, ip]);
+    await pool.query('INSERT INTO users (username,displayname,password,reg_ip) VALUES ($1,$2,$3,$4)', [username,displayname,hash,ip]);
     const token = crypto.randomBytes(32).toString('hex');
-    await pool.query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
+    await pool.query('INSERT INTO sessions (token,username) VALUES ($1,$2)', [token,username]);
     ok(res, { user: { username, displayname }, token });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // LOGIN
 app.post('/api/login', async (req, res) => {
   try {
-    let { username, password } = req.body;
-    username = (username || '').toLowerCase().trim();
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
-    if (rateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) return err(res, 'Слишком много попыток, подожди 15 минут', 429);
-
-    if (!username || !password) return err(res, 'Заполните все поля');
-    const result = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
-    if (!result.rows.length) return err(res, 'Пользователь не найден', 401);
-    const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return err(res, 'Неверный пароль', 401);
+    if (rateLimit(`login:${ip}`, 10, 15*60*1000)) return err(res, 'Слишком много попыток', 429);
+    let { username, password } = req.body;
+    username = (username||'').toLowerCase().trim();
+    if (!username||!password) return err(res, 'Заполните все поля');
+    const r = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
+    if (!r.rows.length) return err(res, 'Пользователь не найден', 401);
+    const u = r.rows[0];
+    if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный пароль', 401);
     const token = crypto.randomBytes(32).toString('hex');
-    await pool.query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
-    ok(res, { user: { username: user.username, displayname: user.displayname, avatar: user.avatar, bio: user.bio }, token });
-  } catch (e) { err(res, e.message, 500); }
+    await pool.query('INSERT INTO sessions (token,username) VALUES ($1,$2)', [token,username]);
+    ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio }, token });
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // LOGOUT
 app.post('/api/logout', auth, async (req, res) => {
-  const token = req.headers['x-token'];
-  await pool.query('DELETE FROM sessions WHERE token=$1', [token]);
+  await pool.query('DELETE FROM sessions WHERE token=$1', [req.headers['x-token']]);
   ok(res, { ok: true });
 });
 
 // GET PROFILE
 app.get('/api/profile/:username', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT username, displayname, avatar, bio FROM users WHERE username=$1', [req.params.username]);
+    const r = await pool.query('SELECT username,displayname,avatar,bio FROM users WHERE username=$1', [req.params.username]);
     if (!r.rows.length) return err(res, 'Не найден', 404);
     ok(res, { user: r.rows[0] });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // UPDATE PROFILE
 app.post('/api/profile', auth, async (req, res) => {
   try {
     const { displayname, bio, avatar, newUsername } = req.body;
-    const dn = (displayname || '').trim();
+    const dn = (displayname||'').trim();
     if (!dn) return err(res, 'Имя не может быть пустым');
-    if (dn.length > 50) return err(res, 'Имя слишком длинное');
-
     let finalUsername = req.username;
-
     if (newUsername) {
       const nu = newUsername.toLowerCase().trim();
-      if (!/^[a-z0-9_]{3,20}$/.test(nu)) return err(res, 'Username: a-z, 0-9, _ (3–20 символов)');
+      if (!/^[a-z0-9_]{3,20}$/.test(nu)) return err(res, 'Username: a-z 0-9 _ (3–20 символов)');
       if (nu !== req.username) {
         const ex = await pool.query('SELECT username FROM users WHERE username=$1', [nu]);
         if (ex.rows.length) return err(res, 'Username уже занят', 409);
         await pool.query('UPDATE messages SET from_user=$1 WHERE from_user=$2', [nu, req.username]);
-        await pool.query('UPDATE messages SET to_user=$1 WHERE to_user=$2', [nu, req.username]);
-        await pool.query('UPDATE messages SET from_dn=$1 WHERE from_user=$2', [dn, nu]);
-        await pool.query('UPDATE sessions SET username=$1 WHERE username=$2', [nu, req.username]);
-        const msgs = await pool.query('SELECT DISTINCT chat_key FROM messages WHERE from_user=$1 OR to_user=$1', [nu]);
-        for (const row of msgs.rows) {
-          const parts = row.chat_key.split(':');
-          const newKey = parts.map(p => p === req.username ? nu : p).sort().join(':');
-          if (newKey !== row.chat_key) {
-            await pool.query('UPDATE messages SET chat_key=$1 WHERE chat_key=$2', [newKey, row.chat_key]);
-          }
+        await pool.query('UPDATE messages SET to_user=$1   WHERE to_user=$2',   [nu, req.username]);
+        await pool.query('UPDATE messages SET from_dn=$1  WHERE from_user=$2',  [dn, nu]);
+        await pool.query('UPDATE sessions  SET username=$1 WHERE username=$2',  [nu, req.username]);
+        const rows = await pool.query('SELECT DISTINCT chat_key FROM messages WHERE from_user=$1 OR to_user=$1', [nu]);
+        for (const row of rows.rows) {
+          const nk = row.chat_key.split(':').map(p=>p===req.username?nu:p).sort().join(':');
+          if (nk !== row.chat_key) await pool.query('UPDATE messages SET chat_key=$1 WHERE chat_key=$2', [nk, row.chat_key]);
         }
-        await pool.query('UPDATE users SET username=$1, displayname=$2, bio=$3, avatar=$4 WHERE username=$5',
+        await pool.query('UPDATE users SET username=$1,displayname=$2,bio=$3,avatar=$4 WHERE username=$5',
           [nu, dn, (bio||'').slice(0,200), avatar||null, req.username]);
         finalUsername = nu;
       }
     }
-
     if (finalUsername === req.username) {
-      await pool.query('UPDATE users SET displayname=$1, bio=$2, avatar=$3 WHERE username=$4',
-        [dn, (bio || '').slice(0, 200), avatar || null, req.username]);
+      await pool.query('UPDATE users SET displayname=$1,bio=$2,avatar=$3 WHERE username=$4',
+        [dn, (bio||'').slice(0,200), avatar||null, req.username]);
     }
-
     ok(res, { ok: true, displayname: dn, username: finalUsername });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // SEARCH
 app.get('/api/search', auth, async (req, res) => {
   try {
-    const q = (req.query.q || '').toLowerCase().trim();
+    const q = (req.query.q||'').trim();
     if (!q) return ok(res, { users: [] });
-    if (rateLimit(`search:${req.username}`, 30, 60 * 1000)) return ok(res, { users: [] });
-    const result = await pool.query(
-      `SELECT username, displayname, avatar FROM users WHERE username != $1 AND (username ILIKE $2 OR displayname ILIKE $2) LIMIT 10`,
+    if (rateLimit(`search:${req.username}`, 30, 60*1000)) return ok(res, { users: [] });
+    const r = await pool.query(
+      `SELECT username,displayname,avatar FROM users WHERE username!=$1 AND (username ILIKE $2 OR displayname ILIKE $2) LIMIT 10`,
       [req.username, `%${q}%`]
     );
-    ok(res, { users: result.rows });
-  } catch (e) { err(res, e.message, 500); }
+    ok(res, { users: r.rows });
+  } catch(e) { err(res, e.message, 500); }
 });
 
-// SEND MESSAGE (text or video)
+// SEND MESSAGE (text / image / video / file)
 app.post('/api/send', auth, async (req, res) => {
   try {
-    const { to, text, type } = req.body;
-    const msgType = type === 'video' ? 'video' : 'text';
+    const { to, text, type, fileName, fileSize } = req.body;
+    const allowedTypes = ['text','image','video','file'];
+    const msgType = allowedTypes.includes(type) ? type : 'text';
     if (!to || !text?.trim()) return err(res, 'Неверные данные');
-
-    // Лимит на сообщения — 60 в минуту
-    if (rateLimit(`msg:${req.username}`, 60, 60 * 1000)) return err(res, 'Слишком много сообщений', 429);
-
-    // Размер видео — не больше 15MB (base64)
-    if (msgType === 'video' && text.length > 20 * 1024 * 1024) return err(res, 'Видео слишком большое', 400);
-
-    const userRes = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
-    if (!userRes.rows.length) return err(res, 'Пользователь не найден', 404);
-    const fromDn = userRes.rows[0].displayname;
+    if (rateLimit(`msg:${req.username}`, 60, 60*1000)) return err(res, 'Слишком много сообщений', 429);
+    if (msgType !== 'text' && text.length > 22*1024*1024) return err(res, 'Файл слишком большой', 400);
+    const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
+    if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
     const key = chatKey(req.username, to);
     const ts = Date.now();
     const r = await pool.query(
-      'INSERT INTO messages (chat_key, from_user, from_dn, to_user, text, type, ts) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-      [key, req.username, fromDn, to, text.trim(), msgType, ts]
+      'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,ts',
+      [key, req.username, ur.rows[0].displayname, to, text.trim(), msgType, ts, fileName||null, fileSize||0]
     );
-    ok(res, { ok: true, id: r.rows[0].id });
-  } catch (e) { err(res, e.message, 500); }
+    ok(res, { ok: true, id: r.rows[0].id, ts: parseInt(r.rows[0].ts) });
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// REACT TO MESSAGE
+app.post('/api/react', auth, async (req, res) => {
+  try {
+    const { id, emoji } = req.body;
+    if (!id || !emoji) return err(res, 'Нужен id и emoji');
+    const em = (emoji||'').trim();
+    if (!em) return err(res, 'Пустой emoji');
+    // Проверяем длину (макс 2 кодовых точки для стандартных эмодзи)
+    if ([...em].length > 4) return err(res, 'Слишком длинный emoji');
+    const r = await pool.query('SELECT reactions, chat_key FROM messages WHERE id=$1', [id]);
+    if (!r.rows.length) return err(res, 'Не найдено', 404);
+    const key = r.rows[0].chat_key;
+    const parts = key.split(':');
+    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    let reactions = parseReactions(r.rows[0].reactions);
+    if (!reactions[em]) reactions[em] = [];
+    const idx = reactions[em].indexOf(req.username);
+    if (idx >= 0) {
+      reactions[em].splice(idx, 1);
+      if (!reactions[em].length) delete reactions[em];
+    } else {
+      reactions[em].push(req.username);
+    }
+    await pool.query('UPDATE messages SET reactions=$1 WHERE id=$2', [JSON.stringify(reactions), id]);
+    ok(res, { ok: true, reactions });
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // MARK AS READ
@@ -253,17 +249,13 @@ app.post('/api/read', auth, async (req, res) => {
     const { other } = req.body;
     if (!other) return err(res, 'Нужен other');
     const key = chatKey(req.username, other);
-    // Помечаем как прочитанные сообщения от other к нам
-    await pool.query(`
-      UPDATE messages SET read_by = CASE
-        WHEN read_by = '' THEN $1
-        WHEN read_by NOT LIKE '%' || $1 || '%' THEN read_by || ',' || $1
-        ELSE read_by
-      END
-      WHERE chat_key=$2 AND from_user=$3 AND to_user=$4 AND NOT deleted
-    `, [req.username, key, other, req.username]);
+    const now = Date.now();
+    await pool.query(
+      `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user=$3 AND to_user=$4 AND NOT deleted AND read_at=0`,
+      [now, key, other, req.username]
+    );
     ok(res, { ok: true });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // DELETE MESSAGE
@@ -272,100 +264,119 @@ app.delete('/api/message/:id', auth, async (req, res) => {
     const r = await pool.query('SELECT from_user FROM messages WHERE id=$1', [req.params.id]);
     if (!r.rows.length) return err(res, 'Не найдено', 404);
     if (r.rows[0].from_user !== req.username) return err(res, 'Нет прав', 403);
-    await pool.query('UPDATE messages SET deleted=TRUE, text=$1 WHERE id=$2', ['Сообщение удалено', req.params.id]);
+    await pool.query('UPDATE messages SET deleted=TRUE,text=$1 WHERE id=$2', ['Сообщение удалено', req.params.id]);
     ok(res, { ok: true });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // DELETE CHAT
 app.delete('/api/chat/:other', auth, async (req, res) => {
   try {
-    const key = chatKey(req.username, req.params.other);
-    await pool.query('DELETE FROM messages WHERE chat_key=$1', [key]);
+    await pool.query('DELETE FROM messages WHERE chat_key=$1', [chatKey(req.username, req.params.other)]);
     ok(res, { ok: true });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // GET MESSAGES
 app.get('/api/messages', auth, async (req, res) => {
   try {
-    const b = req.query.b;
-    const since = parseInt(req.query.since || '0');
+    const { b, since } = req.query;
     if (!b) return err(res, 'Нужен b');
     const key = chatKey(req.username, b);
-    const result = await pool.query(
-      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted,
-       read_by LIKE '%' || $3 || '%' as read
-       FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 200`,
-      [key, since, req.username]  // req.username тут НЕ используется для read (это отправитель) — поправлено ниже
+    const sinceTs = parseInt(since || '0');
+    const r = await pool.query(
+      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size
+       FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 300`,
+      [key, sinceTs]
     );
-    // Правильно: read = кто читал = собеседник
-    const rows = result.rows.map(r => ({
-      ...r,
-      ts: parseInt(r.ts),
-      read: (r.read_by || '').includes(b) // прочитал ли собеседник (b)
-    }));
-    ok(res, { messages: rows });
-  } catch (e) { err(res, e.message, 500); }
+    ok(res, { messages: r.rows.map(m => ({
+      ...m,
+      ts: parseInt(m.ts),
+      read_at: parseInt(m.read_at || 0),
+      file_size: parseInt(m.file_size || 0),
+      reactions: parseReactions(m.reactions)
+    }))});
+  } catch(e) { err(res, e.message, 500); }
+});
+
+// POLL — только обновления существующих сообщений (реакции, read_at)
+app.get('/api/poll', auth, async (req, res) => {
+  try {
+    const { b, since } = req.query;
+    if (!b) return ok(res, { messages: [], updates: [] });
+    const key = chatKey(req.username, b);
+    const sinceTs = parseInt(since || '0');
+
+    // Новые сообщения
+    const newMsgs = await pool.query(
+      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size
+       FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 100`,
+      [key, sinceTs]
+    );
+
+    // Обновления read_at для своих сообщений (без text — экономим трафик)
+    const readUpdates = await pool.query(
+      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at>0 AND ts>$3-86400000`,
+      [key, req.username, sinceTs]
+    );
+
+    ok(res, {
+      messages: newMsgs.rows.map(m => ({
+        ...m,
+        ts: parseInt(m.ts),
+        read_at: parseInt(m.read_at || 0),
+        file_size: parseInt(m.file_size || 0),
+        reactions: parseReactions(m.reactions)
+      })),
+      readUpdates: readUpdates.rows.map(r => ({ id: r.id, read_at: parseInt(r.read_at) }))
+    });
+  } catch(e) { err(res, e.message, 500); }
 });
 
 // GET CHATS LIST
 app.get('/api/chats', auth, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
+      SELECT DISTINCT ON (chat_key)
         chat_key,
-        CASE WHEN from_user = $1 THEN to_user ELSE from_user END AS other_username,
-        text AS last_message,
-        type AS last_type,
-        ts AS last_ts,
-        deleted,
-        from_user AS last_from
-      FROM messages m
-      WHERE (from_user = $1 OR to_user = $1)
-        AND ts = (SELECT MAX(ts) FROM messages m2 WHERE m2.chat_key = m.chat_key)
-      ORDER BY ts DESC
+        CASE WHEN from_user=$1 THEN to_user ELSE from_user END AS other_username,
+        text AS last_message, type AS last_type, ts AS last_ts, deleted
+      FROM messages
+      WHERE from_user=$1 OR to_user=$1
+      ORDER BY chat_key, ts DESC
     `, [req.username]);
 
-    // Получаем непрочитанные одним запросом
-    const unreadResult = await pool.query(`
-      SELECT from_user, COUNT(*) as cnt
-      FROM messages
-      WHERE to_user=$1 AND NOT deleted AND read_by NOT LIKE '%' || $1 || '%'
+    const unreadR = await pool.query(`
+      SELECT from_user, COUNT(*) as cnt FROM messages
+      WHERE to_user=$1 AND NOT deleted AND read_at=0
       GROUP BY from_user
     `, [req.username]);
     const unreadMap = {};
-    for (const r of unreadResult.rows) unreadMap[r.from_user] = parseInt(r.cnt);
+    for (const r of unreadR.rows) unreadMap[r.from_user] = parseInt(r.cnt);
 
-    // Получаем данные всех собеседников одним запросом
+    const others = [...new Set(result.rows.map(r=>r.other_username).filter(Boolean))];
+    let usersMap = {};
+    if (others.length) {
+      const ph = others.map((_,i)=>`$${i+1}`).join(',');
+      const ur = await pool.query(`SELECT username,displayname,avatar FROM users WHERE username IN (${ph})`, others);
+      for (const u of ur.rows) usersMap[u.username] = u;
+    }
+
     const seen = new Set();
-    const otherUsernames = [];
-    for (const row of result.rows) {
+    const chats = [];
+    const sorted = [...result.rows].sort((a,b) => parseInt(b.last_ts) - parseInt(a.last_ts));
+    for (const row of sorted) {
       const other = row.other_username;
       if (!other || seen.has(other)) continue;
       seen.add(other);
-      otherUsernames.push(other);
-    }
-
-    let usersMap = {};
-    if (otherUsernames.length > 0) {
-      const placeholders = otherUsernames.map((_, i) => `$${i+1}`).join(',');
-      const uRes = await pool.query(
-        `SELECT username, displayname, avatar FROM users WHERE username IN (${placeholders})`,
-        otherUsernames
-      );
-      for (const u of uRes.rows) usersMap[u.username] = u;
-    }
-
-    const seenFinal = new Set();
-    const chats = [];
-    for (const row of result.rows) {
-      const other = row.other_username;
-      if (!other || seenFinal.has(other)) continue;
-      seenFinal.add(other);
       const u = usersMap[other] || {};
-      let preview = row.deleted ? 'Сообщение удалено' : row.last_message;
-      if (!row.deleted && row.last_type === 'video') preview = '🎥 Видеосообщение';
+      let preview = row.deleted ? '🗑 Удалено' : row.last_message;
+      if (!row.deleted) {
+        if (row.last_type === 'image') preview = '📷 Фото';
+        else if (row.last_type === 'video') preview = '🎬 Видео';
+        else if (row.last_type === 'file') preview = '📎 Файл';
+        else if (preview && preview.length > 60) preview = preview.slice(0,60)+'…';
+      }
       chats.push({
         otherUsername: other,
         otherDisplayname: u.displayname || other,
@@ -376,10 +387,9 @@ app.get('/api/chats', auth, async (req, res) => {
       });
     }
     ok(res, { chats });
-  } catch (e) { err(res, e.message, 500); }
+  } catch(e) { err(res, e.message, 500); }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Wavr running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
