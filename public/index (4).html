@@ -312,7 +312,7 @@
 
 <script>
 const API = '';
-let me = null, token = null, chatWith = null, pollTid = null, lastTs = 0;
+let me = null, token = null, chatWith = null, pollTid = null, lastTs = 0, seenIds = new Set();
 const AVC = ['av-purple','av-pink','av-green','av-orange','av-blue'];
 const avc = u => AVC[(u||'').split('').reduce((h,c)=>(h*31+c.charCodeAt(0))&0xffff,0) % AVC.length];
 const ini = n => (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
@@ -508,7 +508,7 @@ function renderChats(list){
 async function openChat(username, displayname, avatar=''){
   document.getElementById('s-box').value='';
   document.getElementById('search-results').style.display='none';
-  chatWith={username,displayname,avatar}; lastTs=0;
+  chatWith={username,displayname,avatar}; lastTs=0; seenIds=new Set();
   const tbav=document.getElementById('tb-av');
   setAvEl(tbav, avatar||null, `av ${avc(username)}`, displayname);
   document.getElementById('tb-name').textContent=displayname;
@@ -545,6 +545,8 @@ function renderAll(msgs){
   area.innerHTML=html; area.scrollTop=area.scrollHeight;
 }
 function appendMsgs(msgs){
+  msgs = msgs.filter(m => !seenIds.has(m.id));
+  msgs.forEach(m => seenIds.add(m.id));
   const area=document.getElementById('msgs-area');
   const emp=area.querySelector('.empty-chat'); if(emp) emp.remove();
   msgs.forEach(m=>area.insertAdjacentHTML('beforeend',msgHtml(m)));
@@ -571,7 +573,7 @@ async function deleteMsg(id) {
   if(!confirm('Удалить сообщение?')) return;
   try {
     const r = await fetch(`/api/message/${id}`,{method:'DELETE',headers:hdrs()});
-    if(r.ok) await fetchMsgs(true);
+    if(r.ok) { const el=document.querySelector(`[data-id="${id}"] .bubble`); if(el){el.textContent="Сообщение удалено";el.classList.add("deleted");} }
   } catch(e){}
 }
 
@@ -579,17 +581,19 @@ async function deleteChat() {
   if(!chatWith) return;
   if(!confirm(`Удалить чат с ${chatWith.displayname}? Все сообщения будут удалены.`)) return;
   try {
-    await fetch(`/api/chat/${chatWith.username}`,{method:'DELETE',headers:hdrs()});
-    closeChat(); loadChats();
+    const r = await fetch(`/api/chat/${chatWith.username}`,{method:'DELETE',headers:hdrs()});
+    if(r.ok){ closeChat(); await loadChats(); }
   } catch(e){}
 }
 
 async function deleteChatFrom(username) {
   if(!confirm('Удалить этот чат?')) return;
   try {
-    await fetch(`/api/chat/${username}`,{method:'DELETE',headers:hdrs()});
-    if(chatWith && chatWith.username===username) closeChat();
-    loadChats();
+    const r = await fetch(`/api/chat/${username}`,{method:'DELETE',headers:hdrs()});
+    if(r.ok){
+      if(chatWith && chatWith.username===username) closeChat();
+      await loadChats();
+    }
   } catch(e){}
 }
 
