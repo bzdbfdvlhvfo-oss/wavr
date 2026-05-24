@@ -142,13 +142,13 @@
     .msg-act-btn:hover{background:var(--surface3);color:var(--red);}
 
     /* VIDEO CIRCLE */
-    .msg-wrap.video-wrap{max-width:200px;}
+    .msg-wrap.video-wrap{max-width:190px;}
     .video-circle{width:180px;height:180px;border-radius:50%;overflow:hidden;position:relative;cursor:pointer;
-      border:3px solid var(--accent);flex-shrink:0;}
+      border:3px solid var(--accent);flex-shrink:0;aspect-ratio:1/1;}
     .msg-wrap.me .video-circle{border-color:#7c6aff;}
-    .video-circle video{width:100%;height:100%;object-fit:cover;display:block;}
+    .video-circle video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
     .video-play-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.3);transition:opacity .2s;}
+      background:rgba(0,0,0,.3);transition:opacity .2s;z-index:1;}
     .video-circle:hover .video-play-overlay{opacity:0;}
     .video-circle.playing .video-play-overlay{display:none;}
 
@@ -196,10 +196,11 @@
     .btn-danger:hover{background:#ff4a6a33;}
 
     /* VIDEO LIGHTBOX */
-    #video-lb{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:2000;display:none;align-items:center;justify-content:center;}
-    #video-lb video{max-width:90vw;max-height:90vh;border-radius:50%;border:4px solid var(--accent);}
+    #video-lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2000;display:none;align-items:center;justify-content:center;}
+    #video-lb-wrap{width:min(80vw,80vh);height:min(80vw,80vh);border-radius:50%;overflow:hidden;border:4px solid var(--accent);position:relative;}
+    #video-lb-wrap video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
     #video-lb .lb-close{position:absolute;top:20px;right:20px;background:var(--surface2);border:none;color:var(--text);
-      width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:18px;}
+      width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;}
 
     .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);
       border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
@@ -355,9 +356,11 @@
 </div>
 
 <!-- VIDEO LIGHTBOX -->
-<div id="video-lb" onclick="closeLightbox()">
+<div id="video-lb" onclick="if(event.target===this||event.target.id==='video-lb')closeLightbox()">
   <button class="lb-close" onclick="closeLightbox()">✕</button>
-  <video id="lb-video" controls autoplay loop></video>
+  <div id="video-lb-wrap">
+    <video id="lb-video" controls autoplay loop playsinline></video>
+  </div>
 </div>
 
 <script>
@@ -441,7 +444,10 @@ function enterApp(){
   document.getElementById('my-un').textContent='@'+me.username;
   loadChats();
   clearInterval(pollTid);
-  pollTid=setInterval(()=>{ if(chatWith) fetchMsgs(false); loadChats(); }, 1500);
+  pollTid=setInterval(async ()=>{
+    if(chatWith) { await fetchMsgs(false); }
+    loadChats();
+  }, 1000);
 }
 
 // PROFILE MODAL
@@ -765,14 +771,20 @@ async function sendVideoMessage() {
   const reader = new FileReader();
   reader.onload = async ev => {
     const dataUrl = ev.target.result;
-    // Проверяем размер (примерно 10MB лимит)
     if(dataUrl.length > 13 * 1024 * 1024) {
       alert('Видео слишком большое. Максимум ~10MB (около 60 секунд).');
       return;
     }
     try {
-      await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text:dataUrl,type:'video'})});
-      await fetchMsgs(false); loadChats();
+      const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text:dataUrl,type:'video'})});
+      const d=await r.json();
+      if(d.ok){
+        const fakeMsg={id:d.id,from:me.username,displayname:me.displayname,text:dataUrl,type:'video',ts:Date.now(),deleted:false,read:false};
+        seenIds.add(d.id);
+        appendMsgs([fakeMsg]);
+        lastTs=fakeMsg.ts;
+        loadChats();
+      }
     } catch(e) {}
   };
   reader.readAsDataURL(blob);
@@ -823,8 +835,16 @@ async function sendMsg(){
   const text=inp.value.trim(); if(!text) return;
   inp.value=''; inp.style.height='';
   try{
-    await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text})});
-    await fetchMsgs(false); loadChats();
+    const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text})});
+    const d=await r.json();
+    if(d.ok) {
+      // Сразу добавляем сообщение локально без лишнего запроса
+      const fakeMsg={id:d.id,from:me.username,displayname:me.displayname,text,type:'text',ts:Date.now(),deleted:false,read:false};
+      seenIds.add(d.id);
+      appendMsgs([fakeMsg]);
+      lastTs=fakeMsg.ts;
+      loadChats();
+    }
   }catch(e){}
 }
 function onKey(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
