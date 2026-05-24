@@ -573,7 +573,14 @@ async function deleteMsg(id) {
   if(!confirm('Удалить сообщение?')) return;
   try {
     const r = await fetch(`/api/message/${id}`,{method:'DELETE',headers:hdrs()});
-    if(r.ok) { const el=document.querySelector(`[data-id="${id}"] .bubble`); if(el){el.textContent="Сообщение удалено";el.classList.add("deleted");} }
+    if(r.ok) {
+      const el=document.querySelector(`[data-id="${id}"] .bubble`);
+      if(el){el.textContent="Сообщение удалено";el.classList.add("deleted");}
+      // also hide the delete button for this message
+      const btn=document.querySelector(`[data-id="${id}"] .msg-act-btn`);
+      if(btn) btn.remove();
+      loadChats();
+    }
   } catch(e){}
 }
 
