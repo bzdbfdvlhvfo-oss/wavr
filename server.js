@@ -207,9 +207,10 @@ app.post('/api/send', auth, async (req, res) => {
     if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
     const key = chatKey(req.username, to);
     const ts = Date.now();
+    const storeText = msgType === 'text' ? text.trim() : text;
     const r = await pool.query(
       'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,ts',
-      [key, req.username, ur.rows[0].displayname, to, text.trim(), msgType, ts, fileName||null, fileSize||0]
+      [key, req.username, ur.rows[0].displayname, to, storeText, msgType, ts, fileName||null, fileSize||0]
     );
     ok(res, { ok: true, id: r.rows[0].id, ts: parseInt(r.rows[0].ts) });
   } catch(e) { err(res, e.message, 500); }

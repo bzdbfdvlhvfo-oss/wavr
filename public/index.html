@@ -573,8 +573,11 @@ function enterApp() {
 let _tickBusy = false;
 async function tick() {
   if (_tickBusy) return; _tickBusy=true;
-  try { await loadChats(); if (chatWith) await doPoll(); }
-  finally { _tickBusy=false; }
+  try {
+    const tasks = [loadChats()];
+    if (chatWith) tasks.push(doPoll());
+    await Promise.all(tasks);
+  } finally { _tickBusy=false; }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1335,21 +1338,21 @@ async function confirmPreview() {
     })});
     const d=await r.json();
     if (d.ok) {
-      mediaStore.set(d.id,sendData);
-      seenIds.add(d.id);
+      mediaStore.set(d.id, sendData);
       const fake={id:d.id,from:me.username,displayname:me.displayname,text:sendData,
         type:msgType,ts:d.ts,deleted:false,read_at:0,reactions:{},file_name:f.name,file_size:f.size};
-      appendMsgs([fake]);
+      appendMsgs([fake]); // appendMsgs сама добавит d.id в seenIds
       lastTs=Math.max(lastTs,d.ts);
       // Подпись отправляем отдельно если есть
       if (caption) {
         const r2=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text:caption})});
         const d2=await r2.json();
         if (d2.ok) {
-          seenIds.add(d2.id);
           const fake2={id:d2.id,from:me.username,displayname:me.displayname,text:caption,
             type:'text',ts:d2.ts,deleted:false,read_at:0,reactions:{}};
-          appendMsgs([fake2]); lastTs=Math.max(lastTs,d2.ts);
+          appendMsgs([fake2]); // appendMsgs сама добавит в seenIds
+          seenIds.add(d2.id);  // доп. гарантия от poll-дубля
+          lastTs=Math.max(lastTs,d2.ts);
         }
       }
       _lastChatsJson=null; loadChats();
