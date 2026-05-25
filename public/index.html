@@ -3521,16 +3521,41 @@
             const a = document.getElementById('marea');
             const atBot = a.scrollHeight - a.scrollTop - a.clientHeight < 200;
             const emp = a.querySelector('.empty-chat'); if (emp) emp.remove();
+            // Find last date separator already in DOM
+            const seps = a.querySelectorAll('.dsep');
+            let lastDate = seps.length ? seps[seps.length - 1].textContent : null;
             for (const m of fresh) {
                 if (!m._fake) seenIds.add(m.id);
                 if (m.text && m.type !== 'text') mediaStore.set(m.id, m.text);
                 if (m.from && m.displayname) _userDnCache[m.from] = m.displayname;
+                // Date separator
+                const d = fd(m.ts);
+                if (d !== lastDate) {
+                    const sep = document.createElement('div'); sep.className = 'dsep'; sep.textContent = d;
+                    a.appendChild(sep); lastDate = d;
+                }
                 const node = buildMsgNode(m);
                 a.appendChild(node);
                 injectMsgExtras(node, m);
+                // If media msg arrived via poll without base64 — lazy load it
+                if ((m.type === 'image' || m.type === 'video' || m.type === 'file') && !m.text && !m._fake) {
+                    lazyLoadMedia(node, m);
+                }
             }
             if (atBot) a.scrollTop = a.scrollHeight;
             setupLongPress();
+        }
+
+        async function lazyLoadMedia(node, m) {
+            try {
+                const r = await fetch(`/api/media/${m.id}`, { headers: hdrs() });
+                if (!r.ok) return;
+                const d = await r.json();
+                if (!d.text) return;
+                mediaStore.set(m.id, d.text);
+                m.text = d.text;
+                injectMsgExtras(node, m);
+            } catch(e) {}
         }
 
         /* ════════════════════════════════════════

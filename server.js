@@ -360,6 +360,20 @@ app.get('/api/messages', auth, async (req, res) => {
   } catch (e) { err(res, e.message, 500); }
 });
 
+// GET MEDIA — returns base64 for a single media message
+app.get('/api/media/:id', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, text, type, chat_key FROM messages WHERE id=$1 AND type!='text' AND NOT deleted`,
+      [req.params.id]
+    );
+    if (!r.rows.length) return err(res, 'Не найдено', 404);
+    const parts = r.rows[0].chat_key.split(':');
+    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    ok(res, { id: r.rows[0].id, text: r.rows[0].text, type: r.rows[0].type });
+  } catch (e) { err(res, e.message, 500); }
+});
+
 // POLL — только обновления существующих сообщений (реакции, read_at)
 app.get('/api/poll', auth, async (req, res) => {
   try {
@@ -368,9 +382,11 @@ app.get('/api/poll', auth, async (req, res) => {
     const key = chatKey(req.username, b);
     const sinceTs = parseInt(since || '0');
 
-    // Новые сообщения
+    // Новые сообщения — text только для text-сообщений (не тащим base64 media каждые 800ms)
     const newMsgs = await pool.query(
-      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview
+      `SELECT id, from_user as "from", from_dn as displayname,
+              CASE WHEN type='text' OR deleted THEN text ELSE NULL END as text,
+              type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview
        FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 100`,
       [key, sinceTs]
     );
