@@ -898,6 +898,7 @@ async function doLogout() {
   try { await fetch('/api/logout',{method:'POST',headers:hdrs()}); } catch(e){}
   localStorage.removeItem('wavr');
   me=null; token=null; chatWith=null; _lastChatsJson=null;
+  _chatPollBusy=false; _chatsBusy=false;
   clearInterval(pollTid);
   document.getElementById('adminPanel').style.display='none';
   document.getElementById('app').style.display='none';
@@ -913,26 +914,34 @@ function enterApp() {
   if (me.avatar) _avCache[me.username] = me.avatar;
   document.getElementById('mydn').textContent = me.displayname;
   document.getElementById('myun').textContent = '@'+me.username;
-  // Показываем кнопку админки только владельцу
-  if (me.username === OWNER) {
-    document.getElementById('adminBtn').style.display='flex';
-  }
+  // Показываем кнопку админки ТОЛЬКО владельцу — явно скрываем для всех остальных
+  document.getElementById('adminBtn').style.display = (me.username === OWNER) ? 'flex' : 'none';
   loadChats();
   clearInterval(pollTid);
+  _chatPollBusy = false;
+  _chatsBusy = false;
+  _chatPollStuckTs = 0;
+  _chatsBusyStuckTs = 0;
   pollTid = setInterval(tick, 1000);
 }
 
-let _chatPollBusy = false; // отдельный флаг для poll сообщений
-let _chatsBusy = false;    // отдельный флаг для списка чатов
+let _chatPollBusy = false;
+let _chatsBusy = false;
+let _chatPollStuckTs = 0;
+let _chatsBusyStuckTs = 0;
 
 async function tick() {
-  // Запускаем оба параллельно но независимо — один не блокирует другой
+  const now = Date.now();
+  // Защита от зависших флагов — сбрасываем если прошло больше 10 сек
+  if (_chatsBusy && now - _chatsBusyStuckTs > 10000) { _chatsBusy = false; }
+  if (_chatPollBusy && now - _chatPollStuckTs > 10000) { _chatPollBusy = false; }
+
   if (!_chatsBusy) {
-    _chatsBusy = true;
+    _chatsBusy = true; _chatsBusyStuckTs = now;
     loadChats().catch(handleTickErr).finally(()=>{ _chatsBusy=false; });
   }
   if (chatWith && !_chatPollBusy) {
-    _chatPollBusy = true;
+    _chatPollBusy = true; _chatPollStuckTs = now;
     doPoll().catch(handleTickErr).finally(()=>{ _chatPollBusy=false; });
   }
 }
@@ -1329,7 +1338,9 @@ async function fetchAllMsgs() {
 async function doPoll() {
   if (!chatWith) return;
   try {
-    const r = await fetch(`/api/poll?b=${encodeURIComponent(chatWith.username)}&since=${lastTs}`,{headers:hdrs()});
+    // Запрашиваем с запасом -5 сек чтобы не пропустить сообщения при гонке ts
+    const since = Math.max(0, lastTs - 5000);
+    const r = await fetch(`/api/poll?b=${encodeURIComponent(chatWith.username)}&since=${since}`,{headers:hdrs()});
     if (r.status === 401) { const e = new Error('401'); e.status=401; throw e; }
     const d = await r.json();
     const fresh=(d.messages||[]).filter(m=>!seenIds.has(m.id));
