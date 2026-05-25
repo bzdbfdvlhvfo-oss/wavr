@@ -414,7 +414,80 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   border-radius:6px;transition:all .15s;flex-shrink:0;}
 #replyBarCancel:hover{background:rgba(255,79,110,.12);color:var(--rd);}
 
-</style>
+/* ── УЛУЧШЕННЫЙ ПРОФИЛЬ */
+#pm .modal{max-width:440px;padding:0;overflow:hidden;}
+.pm-header{background:linear-gradient(135deg,#1a1030 0%,#0f0f1e 100%);
+  padding:32px 28px 24px;position:relative;text-align:center;}
+.pm-header::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(124,106,255,.25),transparent 70%);pointer-events:none;}
+.pm-av-wrap{position:relative;display:inline-block;margin-bottom:14px;}
+.avup{width:88px;height:88px;border-radius:50%;cursor:pointer;position:relative;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border:3px solid rgba(124,106,255,.4);box-shadow:0 0 0 6px rgba(124,106,255,.08),0 8px 32px rgba(0,0,0,.5);}
+.avup-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);display:flex;align-items:center;
+  justify-content:center;font-size:22px;border-radius:50%;transition:background .2s;z-index:3;pointer-events:none;}
+.avup:hover .avup-overlay{background:rgba(0,0,0,.55);}
+.avup input{display:none;}
+.pm-av-badge{position:absolute;bottom:2px;right:2px;width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--ac),#5a4fd6);display:flex;align-items:center;justify-content:center;
+  font-size:12px;border:2px solid var(--sf);z-index:4;pointer-events:none;}
+.pm-name{font-size:18px;font-weight:700;color:var(--tx);margin-bottom:3px;}
+.pm-tag{font-size:13px;color:var(--t2);font-family:'Space Mono',monospace;}
+.pm-bio-display{font-size:13px;color:var(--t2);margin-top:8px;line-height:1.5;
+  max-width:280px;margin-left:auto;margin-right:auto;opacity:.8;}
+.pm-stats{display:flex;gap:0;margin-top:16px;border-top:1px solid rgba(255,255,255,.06);padding-top:14px;}
+.pm-stat{flex:1;text-align:center;}
+.pm-stat:not(:last-child){border-right:1px solid rgba(255,255,255,.06);}
+.pm-stat-n{font-size:16px;font-weight:700;font-family:'Space Mono',monospace;color:var(--ac);}
+.pm-stat-l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+.pm-body{padding:20px 24px 24px;}
+.pm-tabs-row{display:flex;gap:4px;background:var(--s2);border-radius:10px;padding:4px;margin-bottom:20px;}
+.prof-tab{flex:1;padding:9px;border:none;background:transparent;color:var(--t2);font-size:13px;
+  font-weight:500;border-radius:7px;cursor:pointer;transition:all .15s;}
+.prof-tab.on{background:var(--s3);color:var(--tx);}
+.pm-field-group{margin-bottom:14px;}
+.pm-field-label{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--t3);margin-bottom:6px;}
+.pm-field-input{width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;
+  color:var(--tx);font-size:14px;outline:none;transition:border-color .15s;font-family:'DM Sans',sans-serif;}
+.pm-field-input:focus{border-color:var(--ac);}
+.pm-field-input::placeholder{color:var(--t3);}
+textarea.pm-field-input{resize:none;line-height:1.5;}
+.pm-save-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--ac),#5a4fd6);border:none;
+  border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;transition:opacity .15s;}
+.pm-save-btn:active{opacity:.85;}
+.pm-err{color:var(--ac2);font-size:12px;margin-top:8px;text-align:center;min-height:16px;}
+.pm-close{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);
+  width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:10;}
+.pm-close:hover{background:rgba(255,255,255,.18);}
+
+/* Sessions улучшения */
+.sess-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);
+  border-radius:10px;margin-bottom:6px;}
+.sess-item.current{border:1px solid rgba(124,106,255,.4);background:rgba(124,106,255,.05);}
+.sess-ico{font-size:20px;flex-shrink:0;}
+.sess-inf{flex:1;min-width:0;}
+.sess-ua{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-time{font-size:11px;color:var(--t2);margin-top:2px;font-family:'Space Mono',monospace;}
+.sess-del{background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:15px;
+  padding:6px;border-radius:6px;transition:all .1s;}
+.sess-del:hover{background:#ff4a6a22;color:var(--rd);}
+
+/* USER INFO modal улучшения */
+#um .modal{padding:0;overflow:hidden;text-align:left;}
+.um-header{background:linear-gradient(135deg,#1a1030 0%,#0f0f1e 100%);
+  padding:28px 24px 20px;position:relative;text-align:center;}
+.um-header::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(124,106,255,.2),transparent 70%);pointer-events:none;}
+.um-body{padding:16px 20px 20px;}
+.um-info-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--br);}
+.um-info-row:last-child{border-bottom:none;}
+.um-info-ico{font-size:16px;width:28px;flex-shrink:0;}
+.um-info-val{font-size:14px;color:var(--tx);}
+.um-info-key{font-size:11px;color:var(--t3);margin-top:1px;}
+.um-action-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--ac),#5a4fd6);border:none;
+  border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:14px;transition:opacity .15s;}
+.um-action-btn:active{opacity:.85;}</style>
 </head>
 <body>
 
@@ -584,43 +657,75 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
 <!-- ── PROFILE MODAL ── -->
 <div id="pm" style="display:none" class="mover" onclick="if(event.target===this)closePM()">
   <div class="modal">
-    <button class="mcl" onclick="closePM()">✕</button>
-    <div class="mtit">Профиль</div>
-    <div class="prof-tabs">
-      <button class="prof-tab on" onclick="profTab('edit')">✏️ Редактировать</button>
-      <button class="prof-tab" onclick="profTab('sessions')">🔐 Сессии</button>
-    </div>
-    <!-- Вкладка редактирования -->
-    <div id="pmEdit">
-      <div class="avup av-xl c0" id="pmav">
-        <div class="avup-overlay">📷</div>
-        <input type="file" accept="image/*" id="avinp" onchange="onAvChange(event)"/>
+    <button class="pm-close" onclick="closePM()">✕</button>
+    <!-- Header с аватаром -->
+    <div class="pm-header">
+      <div class="pm-av-wrap">
+        <div class="avup av-xl c0" id="pmav" onclick="document.getElementById('avinp').click()">
+          <div class="avup-overlay">📷</div>
+          <input type="file" accept="image/*" id="avinp" onchange="onAvChange(event)" style="display:none"/>
+        </div>
+        <div class="pm-av-badge">✏️</div>
       </div>
-      <div class="fg"><label class="fl">Имя</label><input class="fi" id="pmdn"/></div>
-      <div class="fg"><label class="fl">Username</label><input class="fi" id="pmun"/></div>
-      <div class="fg"><label class="fl">О себе</label><input class="fi" id="pmbio" placeholder="Расскажи о себе..."/></div>
-      <button class="bp" onclick="saveP()">Сохранить</button>
-      <div class="err" id="pmerr"></div>
+      <div class="pm-name" id="pmDisplayName">—</div>
+      <div class="pm-tag" id="pmDisplayTag">@—</div>
+      <div class="pm-bio-display" id="pmDisplayBio"></div>
     </div>
-    <!-- Вкладка сессий -->
-    <div id="pmSessions" style="display:none">
-      <div id="sessListWrap" style="max-height:280px;overflow-y:auto">
-        <div style="text-align:center;padding:20px;color:var(--t3)">Загрузка...</div>
+    <!-- Tabs + body -->
+    <div class="pm-body">
+      <div class="pm-tabs-row">
+        <button class="prof-tab on" onclick="profTab('edit')">✏️ Редактировать</button>
+        <button class="prof-tab" onclick="profTab('sessions')">🔐 Сессии</button>
       </div>
-      <button class="bp" style="margin-top:12px;background:var(--s2);color:var(--tx)" 
-        onclick="revokeOtherSessions()">Выйти на всех устройствах</button>
+      <!-- Вкладка редактирования -->
+      <div id="pmEdit">
+        <div class="pm-field-group">
+          <label class="pm-field-label">Имя</label>
+          <input class="pm-field-input" id="pmdn" oninput="updatePMHeader()"/>
+        </div>
+        <div class="pm-field-group">
+          <label class="pm-field-label">Username</label>
+          <input class="pm-field-input" id="pmun" placeholder="только a-z 0-9 _"/>
+        </div>
+        <div class="pm-field-group">
+          <label class="pm-field-label">О себе</label>
+          <textarea class="pm-field-input" id="pmbio" rows="2" placeholder="Расскажи о себе…" maxlength="200" oninput="updatePMHeader()"></textarea>
+        </div>
+        <button class="pm-save-btn" onclick="saveP()">Сохранить изменения</button>
+        <div class="pm-err" id="pmerr"></div>
+      </div>
+      <!-- Вкладка сессий -->
+      <div id="pmSessions" style="display:none">
+        <div id="sessListWrap" style="max-height:260px;overflow-y:auto;margin-bottom:12px">
+          <div style="text-align:center;padding:20px;color:var(--t3)">Загрузка...</div>
+        </div>
+        <button class="pm-save-btn" style="background:var(--s2);color:var(--tx)"
+          onclick="revokeOtherSessions()">Выйти на всех устройствах</button>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- ── USER INFO MODAL ── -->
 <div id="um" style="display:none" class="mover" onclick="if(event.target===this)closeUM()">
-  <div class="modal" style="text-align:center">
-    <button class="mcl" onclick="closeUM()">✕</button>
-    <div class="av av-xl c0" id="umav" style="margin:0 auto 14px;flex-shrink:0;width:68px;height:68px;min-width:68px;font-size:22px;"></div>
-    <div style="font-size:19px;font-weight:700;margin-bottom:4px" id="umdn"></div>
-    <div style="font-size:13px;color:var(--t2);font-family:'Space Mono',monospace;margin-bottom:10px" id="umun"></div>
-    <div style="font-size:14px;color:var(--t2)" id="umbio"></div>
+  <div class="modal">
+    <button class="pm-close" onclick="closeUM()">✕</button>
+    <div class="um-header">
+      <div class="av av-xl c0" id="umav" style="margin:0 auto 14px;flex-shrink:0;width:72px;height:72px;min-width:72px;font-size:24px;border:3px solid rgba(124,106,255,.4);box-shadow:0 0 0 6px rgba(124,106,255,.08),0 8px 32px rgba(0,0,0,.5);"></div>
+      <div style="font-size:20px;font-weight:700;margin-bottom:3px" id="umdn"></div>
+      <div style="font-size:13px;color:var(--t2);font-family:'Space Mono',monospace" id="umun"></div>
+    </div>
+    <div class="um-body">
+      <div id="umbio-row" class="um-info-row" style="display:none">
+        <div class="um-info-ico">💬</div>
+        <div><div class="um-info-val" id="umbio"></div><div class="um-info-key">О себе</div></div>
+      </div>
+      <div class="um-info-row">
+        <div class="um-info-ico">🆔</div>
+        <div><div class="um-info-val" id="umun2" style="font-family:'Space Mono',monospace;font-size:13px"></div><div class="um-info-key">Username</div></div>
+      </div>
+      <button class="um-action-btn" id="umMsgBtn">✉️ Написать сообщение</button>
+    </div>
   </div>
 </div>
 
@@ -814,7 +919,7 @@ function enterApp() {
   }
   loadChats();
   clearInterval(pollTid);
-  pollTid = setInterval(tick, 2000);
+  pollTid = setInterval(tick, 1000);
 }
 
 let _chatPollBusy = false; // отдельный флаг для poll сообщений
@@ -922,6 +1027,8 @@ function openPM() {
   document.getElementById('pmun').value  = me.username||'';
   document.getElementById('pmbio').value = me.bio||'';
   document.getElementById('pmerr').textContent = '';
+  // Обновляем хедер
+  updatePMHeader();
   // Обновляем аватар в модале
   const pmav = document.getElementById('pmav');
   // Убираем старые img, сохраняем overlay и input
@@ -936,11 +1043,21 @@ function openPM() {
     img.alt = '';
     pmav.insertBefore(img, overlay);
   } else {
-    // Показываем инициалы как текстовый узел перед overlay
     pmav.insertBefore(document.createTextNode(ini(me.displayname)), overlay);
   }
   document.getElementById('pm').style.display='flex';
   _newAv = null;
+}
+
+function updatePMHeader() {
+  const dn = document.getElementById('pmdn')?.value || me.displayname || '';
+  const bio = document.getElementById('pmbio')?.value || me.bio || '';
+  const dn_el = document.getElementById('pmDisplayName');
+  const tag_el = document.getElementById('pmDisplayTag');
+  const bio_el = document.getElementById('pmDisplayBio');
+  if (dn_el) dn_el.textContent = dn || me.displayname || '—';
+  if (tag_el) tag_el.textContent = '@' + (me.username || '—');
+  if (bio_el) bio_el.textContent = bio;
 }
 function closePM() { document.getElementById('pm').style.display='none'; }
 
@@ -992,6 +1109,7 @@ async function saveP() {
     _newAv=null; saveSession();
     setAv(document.getElementById('myav'), me.avatar, `av-lg av-on ${avc(me.username)}`, me.displayname);
     document.getElementById('mydn').textContent=me.displayname;
+    updatePMHeader();
     closePM();
     toast('Профиль сохранён');
   } catch(e) { el.textContent=e.message; }
@@ -1004,10 +1122,26 @@ async function openUM() {
     const d = await r.json(); const u = d.user||chatWith;
     const umav = document.getElementById('umav');
     setAv(umav, u.avatar, `av av-xl ${avc(u.username||chatWith.username)}`, u.displayname||chatWith.displayname);
-    umav.style.cssText='margin:0 auto 14px;flex-shrink:0;width:68px;height:68px;min-width:68px;font-size:22px;';
-    document.getElementById('umdn').textContent  = u.displayname||chatWith.displayname;
-    document.getElementById('umun').textContent  = '@'+(u.username||chatWith.username);
-    document.getElementById('umbio').textContent = u.bio||'';
+    umav.style.cssText='margin:0 auto 14px;flex-shrink:0;width:72px;height:72px;min-width:72px;font-size:24px;border:3px solid rgba(124,106,255,.4);box-shadow:0 0 0 6px rgba(124,106,255,.08),0 8px 32px rgba(0,0,0,.5);';
+    const dn = u.displayname||chatWith.displayname;
+    const un = u.username||chatWith.username;
+    const bio = u.bio||'';
+    document.getElementById('umdn').textContent  = dn;
+    document.getElementById('umun').textContent  = '@'+un;
+    document.getElementById('umun2').textContent = '@'+un;
+    const bioEl = document.getElementById('umbio');
+    const bioRow = document.getElementById('umbio-row');
+    if (bio && bio !== '__BANNED__') {
+      bioEl.textContent = bio;
+      bioRow.style.display = 'flex';
+    } else {
+      bioRow.style.display = 'none';
+    }
+    // Кнопка "Написать"
+    const msgBtn = document.getElementById('umMsgBtn');
+    if (msgBtn) {
+      msgBtn.onclick = () => { closeUM(); };
+    }
     document.getElementById('um').style.display='flex';
   } catch(e){}
 }
@@ -1146,6 +1280,7 @@ async function openChat(username, displayname, avatar='') {
   document.getElementById('sres').style.display='none';
   chatWith={username, displayname, avatar: avatar||_avCache[username]||''};
   lastTs=0; seenIds=new Set(); mediaStore.clear(); _lastChatsJson=null;
+  cancelReply(); // сбрасываем ответ при смене чата
 
   setAv(document.getElementById('tbav'), chatWith.avatar||null, `av ${avc(username)}`, displayname);
   document.getElementById('tbname').textContent=displayname;
@@ -1200,6 +1335,16 @@ async function doPoll() {
     const fresh=(d.messages||[]).filter(m=>!seenIds.has(m.id));
     if (fresh.length) {
       lastTs=fresh[fresh.length-1].ts;
+      // Удаляем фейковые (optimistic) ноды которые пришли от меня и совпадают по тексту
+      fresh.forEach(m => {
+        if (m.from === me.username) {
+          const fakes = document.querySelectorAll('[data-id^="t"]');
+          fakes.forEach(node => {
+            const bbl = node.querySelector('.bbl');
+            if (bbl && bbl.textContent === m.text) node.remove();
+          });
+        }
+      });
       appendMsgs(fresh);
       if (fresh.some(m=>m.from!==me.username)) markRead(chatWith.username);
     }
@@ -1247,7 +1392,9 @@ function appendMsgs(msgs) {
   const atBot=a.scrollHeight-a.scrollTop-a.clientHeight<140;
   const emp=a.querySelector('.empty-chat'); if (emp) emp.remove();
   for (const m of fresh) {
-    seenIds.add(m.id);
+    // Фейковые сообщения (optimistic UI) НЕ добавляем в seenIds —
+    // чтобы poll мог получить настоящее сообщение с реальным id
+    if (!m._fake) seenIds.add(m.id);
     if (m.text && m.type!=='text') mediaStore.set(m.id,m.text);
     const node=buildMsgNode(m);
     a.appendChild(node);
@@ -1464,8 +1611,9 @@ document.getElementById('marea').addEventListener('click', e => {
     const msgId = parseInt(replyBtn.dataset.replyId);
     const mw2 = replyBtn.closest('.mw');
     const bbl2 = mw2?.querySelector('.bbl');
-    const mav2 = mw2?.querySelector('.mav');
-    const fromName = mav2?.textContent?.trim() || (mw2?.classList.contains('me') ? me.displayname : chatWith?.displayname) || '?';
+    // Имя берём из data-атрибута сообщения (надёжнее чем из .mav, который может содержать img)
+    const isMe2 = mw2?.classList.contains('me');
+    const fromName = isMe2 ? me.displayname : (chatWith?.displayname || '?');
     const previewText = bbl2?.textContent?.slice(0,80) || '';
     startReply(msgId, fromName, previewText);
     return;
@@ -1650,7 +1798,7 @@ async function sendMsg() {
 
   const tmpTs=Date.now(), tmpId='t'+tmpTs;
   const fake={id:tmpId,from:me.username,displayname:me.displayname,text,type:'text',
-    ts:tmpTs,deleted:false,read_at:0,reactions:{}};
+    ts:tmpTs,deleted:false,read_at:0,reactions:{},_fake:true};
   appendMsgs([fake]);
 
   try {
@@ -1714,7 +1862,10 @@ async function confirmPreview() {
   const f=_prevFile; const dataUrl=_prevDataUrl; const msgType=_prevMsgType;
   const caption = document.getElementById('prevCaption').value.trim();
   if (!f||!chatWith) { cancelPreview(); return; }
+  // Сохраняем _replyTo ДО cancelPreview и cancelReply
+  const replyToId = _replyTo ? _replyTo.id : null;
   cancelPreview();
+  cancelReply();
 
   showUpload(f.name, 5);
   try {
@@ -1732,8 +1883,7 @@ async function confirmPreview() {
     showUpload(f.name, 75);
     // Если есть подпись — отправляем отдельным текстовым сообщением перед медиа
     const sendBody = {to:chatWith.username,text:sendData,type:msgType,fileName:f.name,fileSize:f.size};
-    if (_replyTo) { sendBody.replyTo = _replyTo.id; }
-    cancelReply();
+    if (replyToId) { sendBody.replyTo = replyToId; }
     const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify(sendBody)});
     const d=await r.json();
     if (d.ok) {
