@@ -2762,7 +2762,7 @@
         /* ════════════════════════════════════════
            STATE
         ════════════════════════════════════════ */
-        let me = null, token = null, chatWith = null, pollTid = null;
+        let me = null, token = null, chatWith = null, pollTid = null, _chatsTid = null;
         let lastTs = 0, seenIds = new Set();
         const mediaStore = new Map();
         const _avCache = {};
@@ -2905,7 +2905,7 @@
             localStorage.removeItem('wavr_s');
             me = null; token = null; chatWith = null;
             _lastChatsJson = null; _chatPollBusy = false; _chatsBusy = false;
-            clearInterval(pollTid);
+            clearInterval(pollTid); clearInterval(_chatsTid);
             document.title = 'Wavr';
             document.getElementById('adminPanel').style.display = 'none';
             document.getElementById('app').style.display = 'none';
@@ -2937,7 +2937,10 @@
 
             loadChats();
             clearInterval(pollTid);
-            pollTid = setInterval(tick, 1200);
+            clearInterval(_chatsTid);
+            // Poll messages fast (800ms), chats list slower (2000ms)
+            pollTid = setInterval(tickMsg, 800);
+            _chatsTid = setInterval(tickChats, 2000);
         }
 
         /* ════════════════════════════════════════
@@ -2946,27 +2949,32 @@
         let _chatPollBusy = false, _chatsBusy = false;
         let _chatPollStuckTs = 0, _chatsBusyStuckTs = 0;
 
-        async function tick() {
+        async function tickMsg() {
             const now = Date.now();
-            // Watchdog: reset stuck flags after 12s
-            if (_chatsBusy && now - _chatsBusyStuckTs > 12000) { _chatsBusy = false; }
-            if (_chatPollBusy && now - _chatPollStuckTs > 12000) { _chatPollBusy = false; }
-
-            if (!_chatsBusy) {
-                _chatsBusy = true; _chatsBusyStuckTs = now;
-                loadChats().catch(handleErr).finally(() => { _chatsBusy = false; });
-            }
+            if (_chatPollBusy && now - _chatPollStuckTs > 6000) { _chatPollBusy = false; }
             if (chatWith && !_chatPollBusy) {
                 _chatPollBusy = true; _chatPollStuckTs = now;
                 doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
             }
         }
 
+        async function tickChats() {
+            const now = Date.now();
+            if (_chatsBusy && now - _chatsBusyStuckTs > 6000) { _chatsBusy = false; }
+            if (!_chatsBusy) {
+                _chatsBusy = true; _chatsBusyStuckTs = now;
+                loadChats().catch(handleErr).finally(() => { _chatsBusy = false; });
+            }
+        }
+
+        // keep tick for backward compat (used nowhere now but just in case)
+        async function tick() { tickMsg(); tickChats(); }
+
         function handleErr(e) {
             if (e && (e.status === 401 || e.message === '401')) {
                 localStorage.removeItem('wavr_s');
                 me = null; token = null; chatWith = null; _lastChatsJson = null;
-                clearInterval(pollTid);
+                clearInterval(pollTid); clearInterval(_chatsTid);
                 document.getElementById('adminPanel').style.display = 'none';
                 document.getElementById('app').style.display = 'none';
                 document.getElementById('auth').style.display = 'flex';
