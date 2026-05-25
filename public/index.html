@@ -3455,14 +3455,21 @@
 
                     // Remove optimistic fake bubbles that got confirmed by server
                     fresh.forEach(m => {
-                        if (m.from === me.username && m.type === 'text' && !m.deleted) {
-                            document.querySelectorAll('[data-id^="t"]').forEach(node => {
-                                const bbl = node.querySelector('.bbl');
-                                if (!bbl) return;
-                                const directText = Array.from(bbl.childNodes)
-                                    .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
-                                if (directText.trim() === (m.text || '').trim()) node.remove();
-                            });
+                        if (m.from === me.username && !m.deleted) {
+                            if (m.type === 'text') {
+                                document.querySelectorAll('[data-id^="t"]').forEach(node => {
+                                    const bbl = node.querySelector('.bbl');
+                                    if (!bbl) return;
+                                    const directText = Array.from(bbl.childNodes)
+                                        .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
+                                    if (directText.trim() === (m.text || '').trim()) node.remove();
+                                });
+                            } else {
+                                // For media: fake node with 't' prefix id — remove if exists (shouldn't normally happen)
+                                document.querySelectorAll('[data-id^="t"]').forEach(node => {
+                                    if (node.querySelector('.img-slot, .vid-slot, .file-slot')) node.remove();
+                                });
+                            }
                         }
                     });
 
