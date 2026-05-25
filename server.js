@@ -72,6 +72,8 @@ async function initDB() {
     `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to  INT DEFAULT NULL`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT NULL`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch(e) {} }
   // Чистим старые сессии
@@ -242,9 +244,21 @@ app.post('/api/send', auth, async (req, res) => {
     const key = chatKey(req.username, to);
     const ts = Date.now();
     const storeText = msgType === 'text' ? text.trim() : text;
+    // Reply support
+    let replyTo = null, replyPreview = null;
+    const replyToId = parseInt(req.body.replyTo || 0);
+    if (replyToId) {
+      const rr = await pool.query('SELECT id, text, type, from_dn, from_user FROM messages WHERE id=$1 AND chat_key=$2', [replyToId, key]);
+      if (rr.rows.length) {
+        replyTo = replyToId;
+        const rm = rr.rows[0];
+        const pv = rm.type === 'image' ? '📷 Фото' : rm.type === 'video' ? '🎬 Видео' : rm.type === 'file' ? '📎 Файл' : (rm.text||'').slice(0, 80);
+        replyPreview = JSON.stringify({ from: rm.from_dn || rm.from_user, text: pv });
+      }
+    }
     const r = await pool.query(
-      'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,ts',
-      [key, req.username, ur.rows[0].displayname, to, storeText, msgType, ts, fileName||null, fileSize||0]
+      'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size,reply_to,reply_preview) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,ts',
+      [key, req.username, ur.rows[0].displayname, to, storeText, msgType, ts, fileName||null, fileSize||0, replyTo, replyPreview]
     );
     ok(res, { ok: true, id: r.rows[0].id, ts: parseInt(r.rows[0].ts) });
   } catch(e) { err(res, e.message, 500); }
@@ -320,7 +334,7 @@ app.get('/api/messages', auth, async (req, res) => {
     const key = chatKey(req.username, b);
     const sinceTs = parseInt(since || '0');
     const r = await pool.query(
-      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size
+      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview
        FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 300`,
       [key, sinceTs]
     );
@@ -329,7 +343,9 @@ app.get('/api/messages', auth, async (req, res) => {
       ts: parseInt(m.ts),
       read_at: parseInt(m.read_at || 0),
       file_size: parseInt(m.file_size || 0),
-      reactions: parseReactions(m.reactions)
+      reactions: parseReactions(m.reactions),
+      reply_to: m.reply_to || null,
+      reply_preview: m.reply_preview || null
     }))});
   } catch(e) { err(res, e.message, 500); }
 });
@@ -344,7 +360,7 @@ app.get('/api/poll', auth, async (req, res) => {
 
     // Новые сообщения
     const newMsgs = await pool.query(
-      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size
+      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview
        FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 100`,
       [key, sinceTs]
     );
@@ -355,10 +371,10 @@ app.get('/api/poll', auth, async (req, res) => {
       [key, req.username, sinceTs]
     );
 
-    // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от sinceTs)
+    // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от now)
     const reactionUpdates = await pool.query(
       `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2 - 300000`,
-      [key, sinceTs || Date.now()]
+      [key, Date.now()]
     );
 
     ok(res, {
@@ -367,7 +383,9 @@ app.get('/api/poll', auth, async (req, res) => {
         ts: parseInt(m.ts),
         read_at: parseInt(m.read_at || 0),
         file_size: parseInt(m.file_size || 0),
-        reactions: parseReactions(m.reactions)
+        reactions: parseReactions(m.reactions),
+      reply_to: m.reply_to || null,
+      reply_preview: m.reply_preview || null
       })),
       readUpdates: readUpdates.rows.map(r => ({ id: r.id, read_at: parseInt(r.read_at) })),
       reactionUpdates: reactionUpdates.rows.map(r => ({ id: r.id, reactions: parseReactions(r.reactions) }))

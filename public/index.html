@@ -394,6 +394,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
   font-size:10px;font-family:'Space Mono',monospace;color:var(--t3);margin-left:4px;}
 .online-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--on);
   margin-right:4px;vertical-align:middle;}
+
+/* ── REPLY QUOTE */
+.reply-quote{background:rgba(79,139,255,.08);border-left:3px solid var(--ac);border-radius:8px 8px 0 0;
+  padding:5px 10px;margin-bottom:2px;cursor:pointer;max-width:100%;}
+.mw.me .reply-quote{border-left-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1);}
+.reply-from{font-size:11px;font-weight:700;color:var(--ac);margin-bottom:2px;}
+.mw.me .reply-from{color:rgba(255,255,255,.8);}
+.reply-text{font-size:12px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.mw.me .reply-text{color:rgba(255,255,255,.65);}
+/* Reply bar in input */
+#replyBar{display:none;align-items:center;gap:8px;padding:8px 12px;
+  background:rgba(79,139,255,.07);border-top:1px solid rgba(79,139,255,.12);
+  border-left:3px solid var(--ac);}
+#replyBar.show{display:flex;}
+#replyBarText{flex:1;min-width:0;font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#replyBarFrom{font-size:11px;font-weight:700;color:var(--ac);display:block;margin-bottom:2px;}
+#replyBarCancel{background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;padding:2px 6px;
+  border-radius:6px;transition:all .15s;flex-shrink:0;}
+#replyBarCancel:hover{background:rgba(255,79,110,.12);color:var(--rd);}
+
 </style>
 </head>
 <body>
@@ -501,6 +521,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);heigh
       </div>
       <div class="marea" id="marea">
         <div class="empty-chat"><div class="eico">👋</div><div>Начните переписку!</div></div>
+      </div>
+      <!-- ── REPLY BAR ── -->
+      <div id="replyBar">
+        <div style="flex:1;min-width:0">
+          <span id="replyBarFrom"></span>
+          <span id="replyBarText"></span>
+        </div>
+        <button id="replyBarCancel" onclick="cancelReply()" title="Отмена">✕</button>
       </div>
       <div class="ibar">
         <label class="mbtn" style="cursor:pointer" title="Прикрепить">
@@ -688,6 +716,7 @@ document.addEventListener('keydown', e=>{
   if (_cdlgResolve) { cdlgResolve(false); return; }
   if (document.getElementById('lb').style.display==='flex') { closeLB(); return; }
   if (document.getElementById('adminPanel').style.display!=='none') { closeAdmin(); return; }
+  if (document.getElementById('replyBar').classList.contains('show')) { cancelReply(); return; }
   if (document.getElementById('prevModal').style.display==='flex') { cancelPreview(); return; }
   if (document.getElementById('pm').style.display==='flex') { closePM(); return; }
   if (document.getElementById('um').style.display==='flex') { closeUM(); return; }
@@ -765,6 +794,7 @@ async function doLogout() {
   localStorage.removeItem('wavr');
   me=null; token=null; chatWith=null; _lastChatsJson=null;
   clearInterval(pollTid);
+  document.getElementById('adminPanel').style.display='none';
   document.getElementById('app').style.display='none';
   document.getElementById('auth').style.display='flex';
 }
@@ -787,24 +817,31 @@ function enterApp() {
   pollTid = setInterval(tick, 2000);
 }
 
-let _tickBusy = false;
+let _chatPollBusy = false; // отдельный флаг для poll сообщений
+let _chatsBusy = false;    // отдельный флаг для списка чатов
+
 async function tick() {
-  if (_tickBusy) return; _tickBusy=true;
-  try {
-    const tasks = [loadChats()];
-    if (chatWith) tasks.push(doPoll());
-    await Promise.all(tasks);
-  } catch(e) {
-    if (e && e.status === 401) {
-      // Токен истёк — разлогиниваем
-      localStorage.removeItem('wavr');
-      me=null; token=null; chatWith=null; _lastChatsJson=null;
-      clearInterval(pollTid);
-      document.getElementById('app').style.display='none';
-      document.getElementById('auth').style.display='flex';
-      toast('Сессия истекла, войдите снова', 'err', 4000);
-    }
-  } finally { _tickBusy=false; }
+  // Запускаем оба параллельно но независимо — один не блокирует другой
+  if (!_chatsBusy) {
+    _chatsBusy = true;
+    loadChats().catch(handleTickErr).finally(()=>{ _chatsBusy=false; });
+  }
+  if (chatWith && !_chatPollBusy) {
+    _chatPollBusy = true;
+    doPoll().catch(handleTickErr).finally(()=>{ _chatPollBusy=false; });
+  }
+}
+
+function handleTickErr(e) {
+  if (e && e.status === 401) {
+    localStorage.removeItem('wavr');
+    me=null; token=null; chatWith=null; _lastChatsJson=null;
+    clearInterval(pollTid);
+    document.getElementById('adminPanel').style.display='none';
+    document.getElementById('app').style.display='none';
+    document.getElementById('auth').style.display='flex';
+    toast('Сессия истекла, войдите снова', 'err', 4000);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1127,6 +1164,7 @@ async function openChat(username, displayname, avatar='') {
 
 function closeChat() {
   chatWith=null;
+  cancelReply();
   document.getElementById('cmain').style.display='none';
   document.getElementById('nochat').style.display='flex';
   document.getElementById('app').classList.remove('co');
@@ -1242,6 +1280,12 @@ function buildMsgNode(m) {
     rb.dataset.react=m.id; rb.dataset.pickerBtn='1';
     rb.textContent='😊';
     macts.appendChild(rb);
+    // Reply button
+    const rrb=document.createElement('button');
+    rrb.className='mab'; rrb.title='Ответить';
+    rrb.dataset.replyId=m.id;
+    rrb.innerHTML='<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>';
+    macts.appendChild(rrb);
   }
   if (isMe && !m.deleted) {
     const db=document.createElement('button');
@@ -1253,6 +1297,24 @@ function buildMsgNode(m) {
 
   // Тело сообщения
   const bodyWrap=document.createElement('div');
+
+  // Reply quote (if this message is a reply)
+  if (m.reply_preview && !m.deleted) {
+    try {
+      const rp = typeof m.reply_preview === 'string' ? JSON.parse(m.reply_preview) : m.reply_preview;
+      const rq = document.createElement('div');
+      rq.className = 'reply-quote';
+      rq.dataset.scrollTo = m.reply_to;
+      const rf = document.createElement('div'); rf.className='reply-from'; rf.textContent = rp.from||'';
+      const rt = document.createElement('div'); rt.className='reply-text'; rt.textContent = rp.text||'';
+      rq.appendChild(rf); rq.appendChild(rt);
+      rq.addEventListener('click', ()=>{
+        const target = document.querySelector(`[data-id="${m.reply_to}"]`);
+        if (target) { target.scrollIntoView({behavior:'smooth',block:'center'}); target.style.background='rgba(79,139,255,.15)'; setTimeout(()=>target.style.background='',1200); }
+      });
+      bodyWrap.appendChild(rq);
+    } catch(e){}
+  }
 
   const bodyInner=document.createElement('div');
   if (m.deleted) {
@@ -1396,7 +1458,20 @@ document.getElementById('marea').addEventListener('click', e => {
     return;
   }
 
-  // 3. Кнопка удаления
+  // 3. Кнопка ответа
+  const replyBtn=e.target.closest('[data-reply-id]');
+  if (replyBtn) {
+    const msgId = parseInt(replyBtn.dataset.replyId);
+    const mw2 = replyBtn.closest('.mw');
+    const bbl2 = mw2?.querySelector('.bbl');
+    const mav2 = mw2?.querySelector('.mav');
+    const fromName = mav2?.textContent?.trim() || (mw2?.classList.contains('me') ? me.displayname : chatWith?.displayname) || '?';
+    const previewText = bbl2?.textContent?.slice(0,80) || '';
+    startReply(msgId, fromName, previewText);
+    return;
+  }
+
+  // 4. Кнопка удаления
   const db=e.target.closest('[data-del]');
   if (db) { delMsg(db.dataset.del); return; }
 });
@@ -1544,6 +1619,24 @@ async function doReact(msgId, emoji) {
 }
 
 // ══════════════════════════════════════════════════════
+// REPLY
+// ══════════════════════════════════════════════════════
+let _replyTo = null; // { id, from, text }
+
+function startReply(msgId, fromName, previewText) {
+  _replyTo = { id: msgId };
+  const bar = document.getElementById('replyBar');
+  document.getElementById('replyBarFrom').textContent = fromName;
+  document.getElementById('replyBarText').textContent = previewText;
+  bar.classList.add('show');
+  document.getElementById('minp').focus();
+}
+function cancelReply() {
+  _replyTo = null;
+  document.getElementById('replyBar').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════
 // SEND
 // ══════════════════════════════════════════════════════
 async function sendMsg() {
@@ -1552,13 +1645,18 @@ async function sendMsg() {
   const text=inp.value.trim(); if (!text) return;
   inp.value=''; inp.style.height='';
 
+  const replyTo = _replyTo ? _replyTo.id : null;
+  cancelReply();
+
   const tmpTs=Date.now(), tmpId='t'+tmpTs;
   const fake={id:tmpId,from:me.username,displayname:me.displayname,text,type:'text',
     ts:tmpTs,deleted:false,read_at:0,reactions:{}};
   appendMsgs([fake]);
 
   try {
-    const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({to:chatWith.username,text})});
+    const body = {to:chatWith.username, text};
+    if (replyTo) body.replyTo = replyTo;
+    const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify(body)});
     const d=await r.json();
     if (d.ok) {
       seenIds.add(d.id);
@@ -1633,9 +1731,10 @@ async function confirmPreview() {
     }
     showUpload(f.name, 75);
     // Если есть подпись — отправляем отдельным текстовым сообщением перед медиа
-    const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify({
-      to:chatWith.username,text:sendData,type:msgType,fileName:f.name,fileSize:f.size
-    })});
+    const sendBody = {to:chatWith.username,text:sendData,type:msgType,fileName:f.name,fileSize:f.size};
+    if (_replyTo) { sendBody.replyTo = _replyTo.id; }
+    cancelReply();
+    const r=await fetch('/api/send',{method:'POST',headers:hdrs(),body:JSON.stringify(sendBody)});
     const d=await r.json();
     if (d.ok) {
       mediaStore.set(d.id, sendData);
@@ -1740,7 +1839,8 @@ async function delChatFrom(u){
 // ADMIN PANEL
 // ══════════════════════════════════════════════════════
 async function openAdmin() {
-  if (me.username !== OWNER) return;
+  // Строгая проверка — не позволяем даже вызвать из консоли
+  if (!me || me.username !== OWNER) { console.warn('Нет прав'); return; }
   document.getElementById('adminSearch').value = '';
   document.getElementById('adminPanel').style.display='flex';
   // Грузим в фоне — не блокируем UI
