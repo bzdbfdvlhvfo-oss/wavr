@@ -3877,14 +3877,13 @@
             inp.value = ''; inp.style.height = '';
 
             const replyToId = _replyTo ? _replyTo.id : null;
-            cancelReply();
-
-            const tmpTs = Date.now(), tmpId = 't' + tmpTs;
-            // Build reply_preview for fake so the sender sees the quote instantly
+            // Save reply data BEFORE cancelReply() clears _replyTo
             let fakeReplyPreview = null;
             if (_replyTo) {
                 fakeReplyPreview = JSON.stringify({ from: _replyTo.from || '?', text: _replyTo.text || '' });
             }
+            cancelReply();
+            const tmpTs = Date.now(), tmpId = 't' + tmpTs;
             const fake = {
                 id: tmpId, from: me.username, displayname: me.displayname,
                 text, type: 'text', ts: tmpTs, deleted: false, read_at: 0,
