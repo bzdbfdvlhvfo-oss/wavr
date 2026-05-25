@@ -3363,6 +3363,8 @@
             lastTs = 0; seenIds = new Set(); mediaStore.clear();
             _lastChatsJson = null;
             _chatReady = false;
+            _chatPollBusy = false;
+            if (_pollAbort) { try { _pollAbort.abort(); } catch(e) {} _pollAbort = null; }
             cancelReply();
 
             const tbav = document.getElementById('tbav');
@@ -3416,12 +3418,19 @@
             } catch (e) { if (e.status === 401) throw e; }
         }
 
+        let _pollAbort = null;
+
         async function doPoll() {
             if (!chatWith) return;
             const pollTarget = chatWith.username;
+            // Cancel any previous stuck request
+            if (_pollAbort) { try { _pollAbort.abort(); } catch(e) {} }
+            _pollAbort = new AbortController();
+            const signal = _pollAbort.signal;
             try {
-                const since = Math.max(0, lastTs - 5000);
-                const r = await fetch(`/api/poll?b=${encodeURIComponent(pollTarget)}&since=${since}`, { headers: hdrs() });
+                // Use lastTs directly — server returns ts > sinceTs, so we won't miss messages
+                const since = lastTs;
+                const r = await fetch(`/api/poll?b=${encodeURIComponent(pollTarget)}&since=${since}`, { headers: hdrs(), signal });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 // Bail if user switched chat while request was in-flight
@@ -3465,7 +3474,6 @@
                                     if (directText.trim() === (m.text || '').trim()) node.remove();
                                 });
                             } else {
-                                // For media: fake node with 't' prefix id — remove if exists (shouldn't normally happen)
                                 document.querySelectorAll('[data-id^="t"]').forEach(node => {
                                     if (node.querySelector('.img-slot, .vid-slot, .file-slot')) node.remove();
                                 });
@@ -3494,7 +3502,10 @@
                     const rw = document.querySelector(`[data-rid="${u.id}"]`);
                     if (rw) buildReactsInto(rw, u.id, u.reactions);
                 }
-            } catch (e) { if (e.status === 401) throw e; }
+            } catch (e) {
+                if (e.name === 'AbortError') return; // cancelled — not an error
+                if (e.status === 401) throw e;
+            }
         }
 
         /* ════════════════════════════════════════

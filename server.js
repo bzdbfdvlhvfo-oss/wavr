@@ -391,10 +391,10 @@ app.get('/api/poll', auth, async (req, res) => {
       [key, sinceTs]
     );
 
-    // Обновления read_at для своих сообщений (без text — экономим трафик)
+    // Обновления read_at для своих сообщений за последние 24 часа (not sinceTs — that was wrong)
     const readUpdates = await pool.query(
-      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at>0 AND ts>$3-86400000`,
-      [key, req.username, sinceTs]
+      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at>0 AND ts > $3`,
+      [key, req.username, Date.now() - 86400000]
     );
 
     // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от now)
@@ -422,14 +422,20 @@ app.get('/api/poll', auth, async (req, res) => {
 // GET CHATS LIST
 app.get('/api/chats', auth, async (req, res) => {
   try {
+    // Subquery correctly fetches the LATEST message per chat (DISTINCT ON with ts DESC is broken in PG)
     const result = await pool.query(`
-      SELECT DISTINCT ON (chat_key)
-        chat_key,
-        CASE WHEN from_user=$1 THEN to_user ELSE from_user END AS other_username,
-        text AS last_message, type AS last_type, ts AS last_ts, deleted
-      FROM messages
-      WHERE from_user=$1 OR to_user=$1
-      ORDER BY chat_key, ts DESC
+      SELECT m.chat_key,
+        CASE WHEN m.from_user=$1 THEN m.to_user ELSE m.from_user END AS other_username,
+        m.text AS last_message, m.type AS last_type, m.ts AS last_ts, m.deleted
+      FROM messages m
+      INNER JOIN (
+        SELECT chat_key, MAX(ts) AS max_ts
+        FROM messages
+        WHERE from_user=$1 OR to_user=$1
+        GROUP BY chat_key
+      ) latest ON m.chat_key = latest.chat_key AND m.ts = latest.max_ts
+      WHERE m.from_user=$1 OR m.to_user=$1
+      ORDER BY m.ts DESC
     `, [req.username]);
 
     const unreadR = await pool.query(`
