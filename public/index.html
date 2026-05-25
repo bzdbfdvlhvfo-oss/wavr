@@ -936,6 +936,17 @@
             font-size: 22px;
         }
 
+        .vid-slot {
+            min-width: 180px;
+            min-height: 100px;
+            background: var(--bg3);
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
         .msg-file {
             display: flex;
             align-items: center;
@@ -2091,6 +2102,14 @@
 ══════════════════════════════════════════ */
         #adminPanel {
             display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .75);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            backdrop-filter: blur(12px);
         }
 
         #adminPanel.mover {
@@ -2684,7 +2703,7 @@
     <div id="toast-wrap"></div>
 
     <!-- Admin panel -->
-    <div id="adminPanel" onclick="if(event.target===this)closeAdmin()">
+    <div id="adminPanel" style="display:none" class="mover" onclick="if(event.target===this)closeAdmin()">
         <div class="admin-modal">
             <button class="mcl" onclick="closeAdmin()">✕</button>
             <div class="admin-head">
@@ -2821,12 +2840,21 @@
             if (document.getElementById('pm').style.display === 'flex') { closePM(); return; }
             if (document.getElementById('um').style.display === 'flex') { closeUM(); return; }
             if (document.getElementById('replyBar').classList.contains('show')) { cancelReply(); return; }
+            // Close search if open
+            const sres = document.getElementById('sres');
+            if (sres.style.display !== 'none') {
+                sres.style.display = 'none'; sres.innerHTML = '';
+                document.getElementById('sbox').value = '';
+                return;
+            }
         });
 
         /* timeAgo */
         function timeAgo(ts) {
+            if (!ts) return 'никогда';
             const d = Date.now() - ts;
-            if (d < 60000) return 'только что';
+            if (d < 10000) return 'только что';
+            if (d < 60000) return Math.floor(d / 1000) + ' сек назад';
             if (d < 3600000) return Math.floor(d / 60000) + ' мин назад';
             if (d < 86400000) return Math.floor(d / 3600000) + ' ч назад';
             return Math.floor(d / 86400000) + ' дн назад';
@@ -2878,6 +2906,7 @@
             me = null; token = null; chatWith = null;
             _lastChatsJson = null; _chatPollBusy = false; _chatsBusy = false;
             clearInterval(pollTid);
+            document.title = 'Wavr';
             document.getElementById('adminPanel').style.display = 'none';
             document.getElementById('app').style.display = 'none';
             document.getElementById('auth').style.display = 'flex';
@@ -3090,16 +3119,30 @@
                     const br = /Chrome/i.test(ua) ? 'Chrome' : /Firefox/i.test(ua) ? 'Firefox' : /Safari/i.test(ua) ? 'Safari' : 'Браузер';
                     const div = document.createElement('div');
                     div.className = 'sess-item' + (s.is_current ? ' current' : '');
+                    const tokenShort = s.token ? s.token.slice(0, 8) + '…' : '???';
                     div.innerHTML = `
         <span class="sess-ico">${ico}</span>
         <div class="sess-inf">
-          <div class="sess-ua">${br}${s.is_current ? ' <span style="color:var(--ac);font-size:10px">● текущая</span>' : ''}</div>
-          <div class="sess-time">Активно: ${timeAgo(s.last_seen)}</div>
+          <div class="sess-ua">${esc(br)}${s.is_current ? ' <span style="color:var(--ac);font-size:10px">● текущая</span>' : ''}</div>
+          <div class="sess-time">Активно: ${timeAgo(s.last_seen)} · <span style="font-family:monospace;opacity:.5">${tokenShort}</span></div>
         </div>
-        ${!s.is_current ? `<button class="sess-del" title="Завершить">✕</button>` : ''}
+        ${!s.is_current ? `<button class="sess-del" data-token="${esc(s.token)}" title="Завершить">✕</button>` : ''}
       `;
                     wrap.appendChild(div);
                 });
+                // Event delegation for delete buttons
+                wrap.onclick = async e => {
+                    const btn = e.target.closest('.sess-del');
+                    if (!btn) return;
+                    const tok = btn.dataset.token;
+                    if (!tok) return;
+                    btn.disabled = true; btn.textContent = '…';
+                    try {
+                        await fetch(`/api/sessions/${encodeURIComponent(tok)}`, { method: 'DELETE', headers: hdrs() });
+                        toast('Сессия завершена');
+                        loadSessions();
+                    } catch (e) { toast('Ошибка', 'err'); }
+                };
             } catch (e) { wrap.innerHTML = '<div style="color:var(--rd);padding:14px">Ошибка загрузки</div>'; }
         }
 
@@ -3209,9 +3252,43 @@
                 const list = d.chats || [];
                 const json = JSON.stringify(list);
                 if (json === _lastChatsJson) return;
+
+                // Detect new unread from users we're NOT currently chatting with → toast
+                if (_lastChatsJson !== null) {
+                    try {
+                        const prev = JSON.parse(_lastChatsJson);
+                        const prevMap = {};
+                        prev.forEach(c => { prevMap[c.otherUsername] = c.unread || 0; });
+                        list.forEach(c => {
+                            if (chatWith && c.otherUsername === chatWith.username) return; // current chat
+                            const prevUnread = prevMap[c.otherUsername] || 0;
+                            if ((c.unread || 0) > prevUnread) {
+                                notifyMsg(c.otherDisplayname, c.lastMessage || '');
+                            }
+                        });
+                    } catch(e) {}
+                }
+
                 _lastChatsJson = json;
                 renderChats(list);
+                const totalUnread = list.reduce((s, c) => s + (c.unread || 0), 0);
+                document.title = totalUnread > 0 ? `(${totalUnread}) Wavr` : 'Wavr';
             } catch (e) { if (e.status === 401) throw e; }
+        }
+
+        function notifyMsg(from, text) {
+            // Visual toast notification for message from another chat
+            const w = document.getElementById('toast-wrap');
+            const t = document.createElement('div');
+            t.className = 'toast ok';
+            t.style.cssText = 'cursor:pointer;pointer-events:all;max-width:260px;';
+            const preview = text.length > 40 ? text.slice(0, 40) + '…' : text;
+            t.innerHTML = `<span>💬</span><div><div style="font-weight:700;font-size:12px">${esc(from)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
+            w.appendChild(t);
+            setTimeout(() => {
+                t.style.transition = 'opacity .3s'; t.style.opacity = '0';
+                setTimeout(() => t.remove(), 320);
+            }, 4000);
         }
 
         function renderChats(list) {
@@ -3290,6 +3367,7 @@
 
             await fetchAllMsgs();
             markRead(username);
+            _lastChatsJson = null; // force sidebar refresh after marking read
             loadChats();
         }
 
@@ -3310,7 +3388,7 @@
         async function fetchAllMsgs() {
             if (!chatWith) return;
             try {
-                const r = await fetch(`/api/messages?b=${encodeURIComponent(chatWith.username)}`, { headers: hdrs() });
+                const r = await fetch(`/api/messages?b=${encodeURIComponent(chatWith.username)}&since=0`, { headers: hdrs() });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 const msgs = d.messages || [];
@@ -3362,9 +3440,10 @@
 
                     appendMsgs(fresh);
 
-                    if (fresh.some(msg => msg.from !== me.username)) {
+                    const hasIncoming = fresh.some(msg => msg.from !== me.username);
+                    if (hasIncoming) {
                         markRead(chatWith.username);
-                        _lastChatsJson = null;
+                        _lastChatsJson = null; // force chats list refresh
                     }
                 }
 
@@ -3767,7 +3846,7 @@
         let _replyTo = null;
 
         function startReply(msgId, fromName, previewText) {
-            _replyTo = { id: msgId };
+            _replyTo = { id: msgId, from: fromName, text: previewText };
             document.getElementById('rbiFrom').textContent = fromName;
             document.getElementById('rbiText').textContent = previewText;
             document.getElementById('replyBar').classList.add('show');
@@ -3793,11 +3872,17 @@
             cancelReply();
 
             const tmpTs = Date.now(), tmpId = 't' + tmpTs;
+            // Build reply_preview for fake so the sender sees the quote instantly
+            let fakeReplyPreview = null;
+            if (_replyTo) {
+                fakeReplyPreview = JSON.stringify({ from: _replyTo.from || '?', text: _replyTo.text || '' });
+            }
             const fake = {
                 id: tmpId, from: me.username, displayname: me.displayname,
                 text, type: 'text', ts: tmpTs, deleted: false, read_at: 0,
                 reactions: {}, _fake: true,
-                reply_to: replyToId || null
+                reply_to: replyToId || null,
+                reply_preview: fakeReplyPreview
             };
             appendMsgs([fake]);
 
@@ -3813,6 +3898,11 @@
                     lastTs = Math.max(lastTs, d.ts);
                     _lastChatsJson = null;
                     loadChats();
+                    // Immediately poll so the tick/read state is fresh
+                    if (!_chatPollBusy) {
+                        _chatPollBusy = true; _chatPollStuckTs = Date.now();
+                        doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
+                    }
                 }
             } catch (e) { }
         }
@@ -3879,6 +3969,7 @@
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(sendBody) });
                 const d = await r.json();
                 if (d.ok) {
+                    showUpload(f.name, 100);
                     mediaStore.set(d.id, sendData);
                     const fake = {
                         id: d.id, from: me.username, displayname: me.displayname, text: sendData,
@@ -3902,7 +3993,7 @@
                     _lastChatsJson = null; loadChats();
                 }
             } catch (err) { toast('Ошибка: ' + err.message, 'err'); }
-            hideUpload();
+            setTimeout(hideUpload, 400);
         }
 
         function showUpload(name, pct) {

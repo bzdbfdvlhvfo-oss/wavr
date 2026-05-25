@@ -8,6 +8,14 @@ const app = express();
 app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 // Rate limiting
@@ -459,8 +467,8 @@ app.get('/api/sessions', auth, async (req, res) => {
     );
     const currentToken = req.headers['x-token'];
     ok(res, { sessions: r.rows.map(s => ({
-      token: s.token.slice(0,8)+'…', // показываем только начало для безопасности
-      full_token: s.token === currentToken ? s.token : null, // полный токен только текущей сессии
+      token: s.token, // full token needed for delete API
+      token_display: s.token.slice(0,8)+'…', // short display
       is_current: s.token === currentToken,
       created_at: parseInt(s.created_at),
       expires_at: parseInt(s.expires_at||0),
