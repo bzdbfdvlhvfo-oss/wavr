@@ -2904,7 +2904,7 @@
             try { await fetch('/api/logout', { method: 'POST', headers: hdrs() }); } catch (e) { }
             localStorage.removeItem('wavr_s');
             me = null; token = null; chatWith = null;
-            _lastChatsJson = null; _chatPollBusy = false; _chatsBusy = false;
+            _lastChatsJson = null; _chatPollBusy = false; _chatsBusy = false; _chatReady = false;
             clearInterval(pollTid); clearInterval(_chatsTid);
             document.title = 'Wavr';
             document.getElementById('adminPanel').style.display = 'none';
@@ -2933,6 +2933,7 @@
             // Reset state
             _chatPollBusy = false; _chatsBusy = false;
             _chatPollStuckTs = 0; _chatsBusyStuckTs = 0;
+            _chatReady = false;
             _lastChatsJson = null;
 
             loadChats();
@@ -2948,11 +2949,13 @@
         ════════════════════════════════════════ */
         let _chatPollBusy = false, _chatsBusy = false;
         let _chatPollStuckTs = 0, _chatsBusyStuckTs = 0;
+        let _chatReady = false; // true after fetchAllMsgs completes
 
         async function tickMsg() {
             const now = Date.now();
             if (_chatPollBusy && now - _chatPollStuckTs > 6000) { _chatPollBusy = false; }
-            if (chatWith && !_chatPollBusy) {
+            // Don't poll until initial messages are loaded
+            if (chatWith && !_chatPollBusy && _chatReady) {
                 _chatPollBusy = true; _chatPollStuckTs = now;
                 doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
             }
@@ -3359,6 +3362,7 @@
 
             lastTs = 0; seenIds = new Set(); mediaStore.clear();
             _lastChatsJson = null;
+            _chatReady = false;
             cancelReply();
 
             const tbav = document.getElementById('tbav');
@@ -3374,6 +3378,7 @@
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
 
             await fetchAllMsgs();
+            _chatReady = true;
             markRead(username);
             _lastChatsJson = null; // force sidebar refresh after marking read
             loadChats();
@@ -3381,6 +3386,7 @@
 
         function closeChat() {
             chatWith = null; cancelReply();
+            _chatReady = false;
             document.getElementById('cmain').style.display = 'none';
             document.getElementById('nochat').style.display = 'flex';
             document.getElementById('app').classList.remove('co');
@@ -3419,6 +3425,22 @@
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 const msgs = d.messages || [];
+
+                // Handle deleted updates for already-seen messages (friend deleted their msg)
+                for (const m of msgs) {
+                    if (seenIds.has(m.id) && m.deleted) {
+                        const mw = document.querySelector(`[data-id="${m.id}"]`);
+                        if (mw) {
+                            const bbl = mw.querySelector('.bbl');
+                            if (bbl && !bbl.classList.contains('del')) {
+                                bbl.className = 'bbl del'; bbl.innerHTML = ''; bbl.textContent = 'Сообщение удалено';
+                                mw.querySelectorAll('.mab').forEach(b => b.remove());
+                                mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
+                                mw.querySelector('.reply-quote')?.remove();
+                            }
+                        }
+                    }
+                }
 
                 // Filter truly new (not yet in seenIds)
                 const fresh = msgs.filter(m => !seenIds.has(m.id));
