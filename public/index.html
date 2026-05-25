@@ -3428,8 +3428,9 @@
             _pollAbort = new AbortController();
             const signal = _pollAbort.signal;
             try {
-                // Use lastTs directly — server returns ts > sinceTs, so we won't miss messages
-                const since = lastTs;
+                // since = lastTs - 1: перекрываем граничный случай ts === lastTs.
+                // seenIds отфильтрует уже виденные сообщения, дублей не будет.
+                const since = lastTs > 0 ? lastTs - 1 : 0;
                 const r = await fetch(`/api/poll?b=${encodeURIComponent(pollTarget)}&since=${since}`, { headers: hdrs(), signal });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
@@ -3964,7 +3965,9 @@
                     seenIds.add(d.id);
                     const el = document.querySelector(`[data-id="${tmpId}"]`);
                     if (el) { el.dataset.id = d.id; }
-                    lastTs = Math.max(lastTs, d.ts);
+                    // НЕ обновляем lastTs здесь — doPoll сам обновит через ответ сервера.
+                    // Если обновить lastTs = d.ts сейчас, входящие сообщения с ts <= d.ts
+                    // навсегда выпадут из зоны видимости poll (WHERE ts > sinceTs).
                     _lastChatsJson = null;
                     loadChats();
                     // Immediately poll so the tick/read state is fresh
@@ -4046,7 +4049,7 @@
                     };
                     seenIds.add(d.id);
                     appendMsgs([fake]);
-                    lastTs = Math.max(lastTs, d.ts);
+                    // НЕ обновляем lastTs здесь — по той же причине что и в sendMsg()
                     if (caption) {
                         const r2 = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify({ to: chatWith.username, text: caption }) });
                         const d2 = await r2.json();
@@ -4056,7 +4059,7 @@
                                 id: d2.id, from: me.username, displayname: me.displayname, text: caption,
                                 type: 'text', ts: d2.ts, deleted: false, read_at: 0, reactions: {}
                             };
-                            appendMsgs([fake2]); lastTs = Math.max(lastTs, d2.ts);
+                            appendMsgs([fake2]); // lastTs не трогаем — doPoll обновит сам
                         }
                     }
                     _lastChatsJson = null; loadChats();
