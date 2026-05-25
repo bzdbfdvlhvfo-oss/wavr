@@ -1346,13 +1346,15 @@ async function doPoll() {
     const fresh=(d.messages||[]).filter(m=>!seenIds.has(m.id));
     if (fresh.length) {
       lastTs=fresh[fresh.length-1].ts;
-      // Удаляем фейковые (optimistic) ноды которые пришли от меня и совпадают по тексту
+      // Удаляем фейковые (optimistic) ноды — только по прямому тексту (без reply-quote)
       fresh.forEach(m => {
-        if (m.from === me.username) {
-          const fakes = document.querySelectorAll('[data-id^="t"]');
-          fakes.forEach(node => {
+        if (m.from === me.username && m.type==='text' && !m.deleted) {
+          document.querySelectorAll('[data-id^="t"]').forEach(node => {
             const bbl = node.querySelector('.bbl');
-            if (bbl && bbl.textContent === m.text) node.remove();
+            if (!bbl) return;
+            const directText = Array.from(bbl.childNodes)
+              .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
+            if (directText.trim() === (m.text||'').trim()) node.remove();
           });
         }
       });
@@ -1438,10 +1440,17 @@ function buildMsgNode(m) {
     rb.dataset.react=m.id; rb.dataset.pickerBtn='1';
     rb.textContent='😊';
     macts.appendChild(rb);
-    // Reply button
+    // Reply button — данные только в data-атрибутах, НЕ читаем DOM
     const rrb=document.createElement('button');
     rrb.className='mab'; rrb.title='Ответить';
     rrb.dataset.replyId=m.id;
+    rrb.dataset.replyFrom=isMe?(me.displayname||me.username):(m.displayname||m.from||'?');
+    let _rp;
+    if (m.type==='image') _rp='📷 Фото';
+    else if (m.type==='video') _rp='🎬 Видео';
+    else if (m.type==='file') _rp='📎 '+(m.file_name||'Файл');
+    else _rp=(m.text||'').slice(0,80);
+    rrb.dataset.replyText=_rp;
     rrb.innerHTML='<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>';
     macts.appendChild(rrb);
   }
@@ -1616,17 +1625,14 @@ document.getElementById('marea').addEventListener('click', e => {
     return;
   }
 
-  // 3. Кнопка ответа
+  // 3. Кнопка ответа — ТОЛЬКО data-атрибуты, не читаем DOM
   const replyBtn=e.target.closest('[data-reply-id]');
   if (replyBtn) {
-    const msgId = parseInt(replyBtn.dataset.replyId);
-    const mw2 = replyBtn.closest('.mw');
-    const bbl2 = mw2?.querySelector('.bbl');
-    // Имя берём из data-атрибута сообщения (надёжнее чем из .mav, который может содержать img)
-    const isMe2 = mw2?.classList.contains('me');
-    const fromName = isMe2 ? me.displayname : (chatWith?.displayname || '?');
-    const previewText = bbl2?.textContent?.slice(0,80) || '';
-    startReply(msgId, fromName, previewText);
+    startReply(
+      parseInt(replyBtn.dataset.replyId),
+      replyBtn.dataset.replyFrom || '?',
+      replyBtn.dataset.replyText || ''
+    );
     return;
   }
 
