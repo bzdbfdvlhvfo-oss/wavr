@@ -4772,7 +4772,7 @@
 
         // Also patch setupLongPress to show context menu on mobile
         const _origSetupLongPress = setupLongPress;
-        function setupLongPress() {
+        setupLongPress = function () {
             document.querySelectorAll('.mw:not([data-lp])').forEach(mw => {
                 mw.dataset.lp = '1';
                 let _tid = null;
@@ -4787,42 +4787,34 @@
                 mw.addEventListener('touchend', () => clearTimeout(_tid), { passive: true });
                 mw.addEventListener('touchmove', () => clearTimeout(_tid), { passive: true });
             });
-        }
+        };
 
         /* ════════════════════════════════════════
            PATCH openChat to start/stop helpers
         ════════════════════════════════════════ */
         const _origOpenChat = openChat;
-        async function openChat(username, displayname, avatar) {
+        openChat = async function (username, displayname, avatar) {
             stopTypingPoll();
             stopOnlinePoll();
             await _origOpenChat(username, displayname, avatar);
             startTypingPoll();
             startOnlinePoll();
-            pollOnline(); // immediate first check
-            // Show any pinned message
+            pollOnline();
             showPinnedBar();
-        }
+        };
 
         function showPinnedBar() {
-            // Find pinned message in current chat
-            const pinned = document.querySelector('.mw.pinned, [data-id]');
-            // We'll scan all rendered messages for pinned=true (stored in dataset)
-            const all = document.querySelectorAll('.mw[data-id]');
-            let foundPin = null;
-            // Since we don't store pinned in dataset easily, skip — server sends it via messages
-            // It gets shown when messages load via renderAll check below
+            // pinned messages are shown via renderAll patch below
         }
 
         /* ════════════════════════════════════════
            PATCH renderAll to detect pinned messages
         ════════════════════════════════════════ */
         const _origRenderAll = renderAll;
-        function renderAll(msgs) {
+        renderAll = function (msgs) {
             _pinnedMsgId = null;
             document.getElementById('pinbar').classList.remove('show');
             _origRenderAll(msgs);
-            // After render, find pinned msg
             const pinMsg2 = msgs.find(m => m.pinned && !m.deleted);
             if (pinMsg2) {
                 _pinnedMsgId = pinMsg2.id;
@@ -4833,27 +4825,26 @@
                 document.getElementById('pinbarText').textContent = pinText;
                 document.getElementById('pinbar').classList.add('show');
             }
-        }
+        };
 
         /* ════════════════════════════════════════
            PATCH enterApp to start ping + request push
         ════════════════════════════════════════ */
         const _origEnterApp = enterApp;
-        function enterApp() {
+        enterApp = function () {
             _origEnterApp();
             startPing();
-            // Request push permission after a short delay (less intrusive)
             setTimeout(requestPush, 3000);
-        }
+        };
 
         /* ════════════════════════════════════════
            PATCH doLogout to stop helpers
         ════════════════════════════════════════ */
         const _origDoLogout = doLogout;
-        async function doLogout() {
+        doLogout = async function () {
             stopPing(); stopTypingPoll(); stopOnlinePoll();
             await _origDoLogout();
-        }
+        };
 
         /* ════════════════════════════════════════
            BOOT
