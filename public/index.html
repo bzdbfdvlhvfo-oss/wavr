@@ -4486,11 +4486,12 @@
         }
 
         // Override notifyMsg to also fire push
-        const _origNotifyMsg = notifyMsg;
-        function notifyMsg(from, text) {
-            _origNotifyMsg(from, text);
+        // Using variable assignment to avoid function hoisting overwrite bug
+        const _notifyMsgBase = notifyMsg;
+        notifyMsg = function(from, text) {
+            _notifyMsgBase(from, text);
             sendPushNotif(from, text);
-        }
+        };
 
         /* ════════════════════════════════════════
            TYPING INDICATOR
@@ -4602,9 +4603,11 @@
             document.getElementById('minp').style.height = '';
         }
 
-        // Patch sendMsg to handle edit
-        const _origSendMsg = sendMsg;
-        async function sendMsg() {
+        // Patch sendMsg to handle edit mode
+        // NOTE: we do NOT redeclare sendMsg here to avoid function hoisting overwrite bug.
+        // Instead we inject edit logic directly into the original sendMsg by wrapping it.
+        const _sendMsgBase = sendMsg;
+        sendMsg = async function sendMsg() {
             if (_editingId) {
                 const inp = document.getElementById('minp');
                 const text = inp.value.trim();
@@ -4635,8 +4638,8 @@
                 } catch (e) { toast('Ошибка', 'err'); }
                 return;
             }
-            await _origSendMsg();
-        }
+            await _sendMsgBase();
+        };
 
         /* ════════════════════════════════════════
            PIN MESSAGE
