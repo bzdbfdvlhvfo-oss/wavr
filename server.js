@@ -4,56 +4,32 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const crypto = require('crypto');
 
-try { require('dotenv').config(); } catch (e) { /* dotenv optional */ }
-
-try { require('dotenv').config(); } catch (e) { /* optional */ }
-
 const app = express();
 app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use((req, res, next) => {
-  if (process.env.LOG_REQUESTS) console.log(`${req.method} ${req.path}`);
-  next();
-});
 
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; connect-src 'self'");
   next();
 });
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
-pool.on('error', (err) => console.error('Pool error:', err.message));
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-// Rate limiting — automatic cleanup every 5 min + proactive eviction
+// Rate limiting
 const rl = new Map();
 function rateLimit(key, max, ms) {
   const now = Date.now();
-  let e = rl.get(key);
-  if (!e || now > e.r) { e = { n: 0, r: now + ms }; }
+  const e = rl.get(key) || { n: 0, r: now + ms };
+  if (now > e.r) { e.n = 0; e.r = now + ms; }
   e.n++;
   rl.set(key, e);
   return e.n > max;
 }
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of rl) if (now > v.r) rl.delete(k);
-  if (rl.size > 10000) rl.clear();
-}, 5 * 60 * 1000);
-
-setInterval(() => {
-  pool.query('DELETE FROM typing_status WHERE ts < $1', [Date.now() - 10000]).catch(() => {});
-}, 30 * 1000);
+setInterval(() => { const now = Date.now(); for (const [k, v] of rl) if (now > v.r) rl.delete(k); }, 5 * 60 * 1000);
 
 async function initDB() {
   await pool.query(`
@@ -85,42 +61,35 @@ async function initDB() {
       ts        BIGINT NOT NULL,
       deleted   BOOLEAN DEFAULT FALSE,
       read_at   BIGINT DEFAULT 0,
-      reactions TEXT DEFAULT '{}',
-      file_name TEXT,
-      file_size BIGINT DEFAULT 0,
-      reply_to  INT DEFAULT NULL,
-      reply_preview TEXT DEFAULT NULL,
-      pinned    BOOLEAN DEFAULT FALSE,
-      edited    BOOLEAN DEFAULT FALSE
+      reactions TEXT DEFAULT '{}'
     );
-    CREATE INDEX IF NOT EXISTS idx_msg_chat    ON messages(chat_key, ts);
-    CREATE INDEX IF NOT EXISTS idx_sessions     ON sessions(token);
-    CREATE INDEX IF NOT EXISTS idx_msg_from     ON messages(from_user);
-    CREATE INDEX IF NOT EXISTS idx_msg_to       ON messages(to_user);
-
-    CREATE TABLE IF NOT EXISTS hidden_chats (
-      username  TEXT NOT NULL,
-      chat_key  TEXT NOT NULL,
-      hidden_at BIGINT NOT NULL,
-      PRIMARY KEY (username, chat_key)
-    );
-    CREATE TABLE IF NOT EXISTS typing_status (
-      username  TEXT NOT NULL,
-      to_user   TEXT NOT NULL,
-      ts        BIGINT NOT NULL,
-      PRIMARY KEY (username, to_user)
-    );
+    CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_key, ts);
+    CREATE INDEX IF NOT EXISTS idx_sessions  ON sessions(token);
   `);
 
   const migs = [
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name      TEXT`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size      BIGINT DEFAULT 0`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to       INT DEFAULT NULL`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview  TEXT DEFAULT NULL`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned         BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited         BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS avatar    TEXT`,
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS bio       TEXT DEFAULT ''`,
+    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS reg_ip    TEXT DEFAULT 'unknown'`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted   BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS type      TEXT DEFAULT 'text'`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at   BIGINT DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}'`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username   TEXT`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000 + 2592000000)`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''`,
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to  INT DEFAULT NULL`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT NULL`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited     BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned     BOOLEAN DEFAULT FALSE`,
+    `CREATE TABLE IF NOT EXISTS chat_hidden (username TEXT NOT NULL, chat_key TEXT NOT NULL, hidden_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000), PRIMARY KEY (username, chat_key))`,
+    `CREATE TABLE IF NOT EXISTS blocked (username TEXT NOT NULL, blocked TEXT NOT NULL, ts BIGINT, PRIMARY KEY (username, blocked))`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch (e) { } }
+  // Чистим старые сессии
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { }
   console.log('DB ready');
 }
@@ -277,12 +246,15 @@ app.post('/api/send', auth, async (req, res) => {
     const { to, text, type, fileName, fileSize } = req.body;
     const allowedTypes = ['text', 'image', 'video', 'file'];
     const msgType = allowedTypes.includes(type) ? type : 'text';
+    // Для медиа text — это base64, не trim
     if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
     if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
     if (!to) return err(res, 'Неверные данные');
     if (rateLimit(`msg:${req.username}`, 60, 60 * 1000)) return err(res, 'Слишком много сообщений', 429);
-    if (msgType === 'text' && text.length > 10000) return err(res, 'Текст слишком длинный', 400);
     if (msgType !== 'text' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
+    // Check if recipient blocked us
+    const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, req.username]);
+    if (blk.rows.length) return err(res, 'Пользователь заблокировал вас', 403);
     const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
     if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
     const key = chatKey(req.username, to);
@@ -305,6 +277,29 @@ app.post('/api/send', auth, async (req, res) => {
       [key, req.username, ur.rows[0].displayname, to, storeText, msgType, ts, fileName || null, fileSize || 0, replyTo, replyPreview]
     );
     ok(res, { ok: true, id: r.rows[0].id, ts: parseInt(r.rows[0].ts) });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// BLOCK / UNBLOCK
+app.post('/api/block/:username', auth, async (req, res) => {
+  try {
+    if (req.params.username === req.username) return err(res, 'Нельзя заблокировать себя');
+    const u = await pool.query('SELECT 1 FROM users WHERE username=$1', [req.params.username]);
+    if (!u.rows.length) return err(res, 'Пользователь не найден', 404);
+    await pool.query('INSERT INTO blocked (username,blocked,ts) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [req.username, req.params.username, Date.now()]);
+    ok(res, { ok: true, blocked: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+app.post('/api/unblock/:username', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM blocked WHERE username=$1 AND blocked=$2', [req.username, req.params.username]);
+    ok(res, { ok: true, blocked: false });
+  } catch (e) { err(res, e.message, 500); }
+});
+app.get('/api/blocked', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT blocked, ts FROM blocked WHERE username=$1 ORDER BY ts DESC', [req.username]);
+    ok(res, { blocked: r.rows.map(x => ({ username: x.blocked, ts: parseInt(x.ts) })) });
   } catch (e) { err(res, e.message, 500); }
 });
 
@@ -355,55 +350,156 @@ app.post('/api/read', auth, async (req, res) => {
 // DELETE MESSAGE
 app.delete('/api/message/:id', auth, async (req, res) => {
   try {
+    const { everyone } = req.query;
     const r = await pool.query('SELECT from_user FROM messages WHERE id=$1', [req.params.id]);
     if (!r.rows.length) return err(res, 'Не найдено', 404);
     if (r.rows[0].from_user !== req.username) return err(res, 'Нет прав', 403);
-    await pool.query('UPDATE messages SET deleted=TRUE,text=$1 WHERE id=$2', ['Сообщение удалено', req.params.id]);
+    if (everyone) {
+      await pool.query('DELETE FROM messages WHERE id=$1', [req.params.id]);
+    } else {
+      await pool.query('UPDATE messages SET deleted=TRUE,text=$1 WHERE id=$2', ['Сообщение удалено', req.params.id]);
+    }
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
 
-// DELETE CHAT — скрываем только для себя (soft delete per user)
+// EDIT MESSAGE
+app.patch('/api/message/:id', auth, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return err(res, 'Пустой текст');
+    const r = await pool.query('SELECT from_user, deleted FROM messages WHERE id=$1', [req.params.id]);
+    if (!r.rows.length) return err(res, 'Не найдено', 404);
+    if (r.rows[0].from_user !== req.username) return err(res, 'Нет прав', 403);
+    if (r.rows[0].deleted) return err(res, 'Сообщение удалено', 400);
+    await pool.query('UPDATE messages SET text=$1,edited=TRUE WHERE id=$2', [text.trim(), req.params.id]);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// DELETE CHAT — soft-delete per-user, or hard-delete for both
 app.delete('/api/chat/:other', auth, async (req, res) => {
   try {
     const key = chatKey(req.username, req.params.other);
-    const hiddenAt = Date.now();
-    await pool.query(
-      `INSERT INTO hidden_chats (username, chat_key, hidden_at) VALUES ($1,$2,$3)
-       ON CONFLICT (username, chat_key) DO UPDATE SET hidden_at=EXCLUDED.hidden_at`,
-      [req.username, key, hiddenAt]
-    );
+    const { everyone } = req.query;
+    if (everyone) {
+      await pool.query('DELETE FROM messages WHERE chat_key=$1', [key]);
+      await pool.query('DELETE FROM chat_hidden WHERE chat_key=$1', [key]);
+    } else {
+      await pool.query('INSERT INTO chat_hidden (username,chat_key,hidden_at) VALUES ($1,$2,$3) ON CONFLICT (username,chat_key) DO UPDATE SET hidden_at=EXCLUDED.hidden_at', [req.username, key, Date.now()]);
+    }
     ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// PIN / UNPIN MESSAGE
+app.post('/api/pin/:id', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT chat_key FROM messages WHERE id=$1', [req.params.id]);
+    if (!r.rows.length) return err(res, 'Не найдено', 404);
+    const parts = r.rows[0].chat_key.split(':');
+    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    // Toggle pin: first unpin any existing pinned message in this chat, then pin this one
+    // Actually simpler: just toggle this message
+    const m = await pool.query('SELECT pinned FROM messages WHERE id=$1', [req.params.id]);
+    const wasPinned = m.rows[0].pinned;
+    // If pinning: unpin all other messages in this chat first
+    if (!wasPinned) {
+      await pool.query('UPDATE messages SET pinned=FALSE WHERE chat_key=$1 AND pinned=TRUE', [r.rows[0].chat_key]);
+    }
+    await pool.query('UPDATE messages SET pinned=$1 WHERE id=$2', [!wasPinned, req.params.id]);
+    ok(res, { ok: true, pinned: !wasPinned });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// ── Typing indicator (in-memory) ──
+const typingMap = new Map(); // chat_key → { username, ts }
+
+app.post('/api/typing', auth, async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return err(res, 'Нужен to');
+    const key = chatKey(req.username, to);
+    typingMap.set(key, { username: req.username, ts: Date.now() });
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+app.get('/api/typing', auth, async (req, res) => {
+  try {
+    const { b } = req.query;
+    if (!b) return ok(res, { typing: false });
+    const key = chatKey(req.username, b);
+    const entry = typingMap.get(key);
+    if (entry && entry.username !== req.username && Date.now() - entry.ts < 4000) {
+      return ok(res, { typing: true });
+    }
+    ok(res, { typing: false });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Clean up stale typing entries every 10s
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of typingMap) if (now - v.ts > 5000) typingMap.delete(k);
+}, 10000);
+
+// ── Ping (keep session alive) ──
+app.post('/api/ping', auth, async (req, res) => {
+  // auth middleware already updates last_seen
+  ok(res, { ok: true });
+});
+
+// ── Online status ──
+app.get('/api/online/:username', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT MAX(last_seen) as last_seen FROM sessions WHERE username=$1', [req.params.username]);
+    const lastSeen = r.rows[0]?.last_seen ? parseInt(r.rows[0].last_seen) : 0;
+    const online = lastSeen > 0 && Date.now() - lastSeen < 300000;
+    ok(res, { online, last_seen: lastSeen });
   } catch (e) { err(res, e.message, 500); }
 });
 
 // GET MESSAGES
 app.get('/api/messages', auth, async (req, res) => {
   try {
-    const { b, since } = req.query;
+    const { b, since, before } = req.query;
     if (!b) return err(res, 'Нужен b');
     const key = chatKey(req.username, b);
     const sinceTs = parseInt(since || '0');
-    // Check if chat is hidden for this user — only show messages after hidden_at
-    const hid = await pool.query('SELECT hidden_at FROM hidden_chats WHERE username=$1 AND chat_key=$2', [req.username, key]);
-    const hiddenAt = hid.rows.length ? parseInt(hid.rows[0].hidden_at) : 0;
-    const fromTs = Math.max(sinceTs, hiddenAt);
-    const r = await pool.query(
-      `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, pinned, edited
-       FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 300`,
-      [key, fromTs]
+    const beforeTs = parseInt(before || '0');
+    // Check if chat was hidden
+    const hid = await pool.query(
+      'SELECT hidden_at FROM chat_hidden WHERE username=$1 AND chat_key=$2',
+      [req.username, key]
     );
+    const hiddenAt = hid.rows.length ? parseInt(hid.rows[0].hidden_at) : 0;
+    let rows;
+    if (beforeTs > 0) {
+      // Infinite scroll: load messages OLDER than beforeTs but NEWER than hiddenAt
+      const r = await pool.query(
+        `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
+         FROM messages WHERE chat_key=$1 AND ts<$2 AND ts>$3 AND NOT deleted ORDER BY ts DESC LIMIT 100`,
+        [key, beforeTs, hiddenAt]
+      );
+      rows = r.rows.reverse();
+    } else {
+      const r = await pool.query(
+        `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
+         FROM messages WHERE chat_key=$1 AND ts>$2 AND ts>$3 ORDER BY ts ASC LIMIT 300`,
+        [key, sinceTs, hiddenAt]
+      );
+      rows = r.rows;
+    }
     ok(res, {
-      messages: r.rows.map(m => ({
+      messages: rows.map(m => ({
         ...m,
         ts: parseInt(m.ts),
         read_at: parseInt(m.read_at || 0),
         file_size: parseInt(m.file_size || 0),
         reactions: parseReactions(m.reactions),
         reply_to: m.reply_to || null,
-        reply_preview: m.reply_preview || null,
-        pinned: !!m.pinned,
-        edited: !!m.edited
+        reply_preview: m.reply_preview || null
       }))
     });
   } catch (e) { err(res, e.message, 500); }
@@ -431,28 +527,25 @@ app.get('/api/poll', auth, async (req, res) => {
     const key = chatKey(req.username, b);
     const sinceTs = parseInt(since || '0');
 
-    // Check hidden_at for this user in poll
-    const hid = await pool.query('SELECT hidden_at FROM hidden_chats WHERE username=$1 AND chat_key=$2', [req.username, key]);
-    const hiddenAt = hid.rows.length ? parseInt(hid.rows[0].hidden_at) : 0;
-    const fromTs = Math.max(sinceTs, hiddenAt);
-
     // Новые сообщения — text только для text-сообщений (не тащим base64 media каждые 800ms)
     const newMsgs = await pool.query(
       `SELECT id, from_user as "from", from_dn as displayname,
               CASE WHEN type='text' OR deleted THEN text ELSE NULL END as text,
               type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
        FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 100`,
-      [key, fromTs]
+      [key, sinceTs]
     );
 
+    // Обновления read_at для своих сообщений за последние 24 часа (not sinceTs — that was wrong)
     const readUpdates = await pool.query(
-      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at > 0 AND read_at > $3`,
-      [key, req.username, fromTs]
+      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at>0 AND ts > $3`,
+      [key, req.username, Date.now() - 86400000]
     );
 
+    // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от now)
     const reactionUpdates = await pool.query(
-      `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2 AND reactions != '{}'`,
-      [key, fromTs]
+      `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2`,
+      [key, Date.now() - 300000]
     );
 
     ok(res, {
@@ -463,9 +556,7 @@ app.get('/api/poll', auth, async (req, res) => {
         file_size: parseInt(m.file_size || 0),
         reactions: parseReactions(m.reactions),
         reply_to: m.reply_to || null,
-        reply_preview: m.reply_preview || null,
-        edited: !!m.edited,
-        pinned: !!m.pinned
+        reply_preview: m.reply_preview || null
       })),
       readUpdates: readUpdates.rows.map(r => ({ id: r.id, read_at: parseInt(r.read_at) })),
       reactionUpdates: reactionUpdates.rows.map(r => ({ id: r.id, reactions: parseReactions(r.reactions) }))
@@ -482,13 +573,13 @@ app.get('/api/chats', auth, async (req, res) => {
         CASE WHEN m.from_user=$1 THEN m.to_user ELSE m.from_user END AS other_username,
         m.text AS last_message, m.type AS last_type, m.ts AS last_ts, m.deleted
       FROM messages m
+      LEFT JOIN chat_hidden hc ON hc.username=$1 AND hc.chat_key=m.chat_key
       INNER JOIN (
         SELECT chat_key, MAX(ts) AS max_ts
         FROM messages
-        WHERE from_user=$1 OR to_user=$1
+        WHERE (from_user=$1 OR to_user=$1)
         GROUP BY chat_key
       ) latest ON m.chat_key = latest.chat_key AND m.ts = latest.max_ts
-      LEFT JOIN hidden_chats hc ON hc.chat_key = m.chat_key AND hc.username = $1
       WHERE (m.from_user=$1 OR m.to_user=$1)
         AND (hc.hidden_at IS NULL OR m.ts > hc.hidden_at)
       ORDER BY m.ts DESC
@@ -508,6 +599,13 @@ app.get('/api/chats', auth, async (req, res) => {
       const ph = others.map((_, i) => `$${i + 1}`).join(',');
       const ur = await pool.query(`SELECT username,displayname,avatar FROM users WHERE username IN (${ph})`, others);
       for (const u of ur.rows) usersMap[u.username] = u;
+    }
+    // Fetch last_seen for each contact
+    let lastSeenMap = {};
+    if (others.length) {
+      const ph = others.map((_, i) => `$${i + 1}`).join(',');
+      const ls = await pool.query(`SELECT username, MAX(last_seen) as last_seen FROM sessions WHERE username IN (${ph}) GROUP BY username`, others);
+      for (const s of ls.rows) lastSeenMap[s.username] = parseInt(s.last_seen || 0);
     }
 
     const seen = new Set();
@@ -531,7 +629,8 @@ app.get('/api/chats', auth, async (req, res) => {
         otherAvatar: u.avatar || null,
         lastMessage: preview,
         lastTs: parseInt(row.last_ts),
-        unread: unreadMap[other] || 0
+        unread: unreadMap[other] || 0,
+        lastSeen: lastSeenMap[other] || 0
       });
     }
     ok(res, { chats });
@@ -655,88 +754,6 @@ app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
       sessions: parseInt(sess.rows[0].c),
       today: parseInt(today.rows[0].c)
     });
-  } catch (e) { err(res, e.message, 500); }
-});
-
-// EDIT MESSAGE
-app.patch('/api/message/:id', auth, async (req, res) => {
-  try {
-    const { text } = req.body;
-    const newText = (text || '').trim();
-    if (!newText) return err(res, 'Текст не может быть пустым');
-    const r = await pool.query('SELECT from_user, type FROM messages WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return err(res, 'Не найдено', 404);
-    if (r.rows[0].from_user !== req.username) return err(res, 'Нет прав', 403);
-    if (r.rows[0].type !== 'text') return err(res, 'Можно редактировать только текст', 400);
-    await pool.query('UPDATE messages SET text=$1, edited=TRUE WHERE id=$2', [newText, req.params.id]);
-    ok(res, { ok: true });
-  } catch (e) { err(res, e.message, 500); }
-});
-
-// PIN / UNPIN MESSAGE
-app.post('/api/pin/:id', auth, async (req, res) => {
-  try {
-    const msgId = parseInt(req.params.id);
-    const r = await pool.query('SELECT chat_key, pinned FROM messages WHERE id=$1 AND NOT deleted', [msgId]);
-    if (!r.rows.length) return err(res, 'Не найдено', 404);
-    const parts = r.rows[0].chat_key.split(':');
-    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
-    const nowPinned = !r.rows[0].pinned;
-    // Снимаем закреп со всех сообщений этого чата, потом ставим на нужное
-    await pool.query('UPDATE messages SET pinned=FALSE WHERE chat_key=$1', [r.rows[0].chat_key]);
-    if (nowPinned) {
-      await pool.query('UPDATE messages SET pinned=TRUE WHERE id=$1', [msgId]);
-    }
-    ok(res, { ok: true, pinned: nowPinned });
-  } catch (e) { err(res, e.message, 500); }
-});
-
-// TYPING — POST (отправить статус печатания)
-app.post('/api/typing', auth, async (req, res) => {
-  try {
-    const { to } = req.body;
-    if (!to) return err(res, 'Нужен to');
-    await pool.query(
-      `INSERT INTO typing_status (username, to_user, ts) VALUES ($1,$2,$3)
-       ON CONFLICT (username, to_user) DO UPDATE SET ts=EXCLUDED.ts`,
-      [req.username, to, Date.now()]
-    );
-    ok(res, { ok: true });
-  } catch (e) { err(res, e.message, 500); }
-});
-
-// TYPING — GET (проверить, печатает ли собеседник)
-app.get('/api/typing', auth, async (req, res) => {
-  try {
-    const { b } = req.query;
-    if (!b) return ok(res, { typing: false });
-    const r = await pool.query(
-      'SELECT ts FROM typing_status WHERE username=$1 AND to_user=$2',
-      [b, req.username]
-    );
-    // Считаем "печатает" если последний сигнал был не более 4 секунд назад
-    const typing = r.rows.length > 0 && (Date.now() - parseInt(r.rows[0].ts)) < 4000;
-    ok(res, { typing });
-  } catch (e) { err(res, e.message, 500); }
-});
-
-// PING — обновить last_seen (уже обновляется в middleware auth, но JS явно шлёт пинг)
-app.post('/api/ping', auth, async (req, res) => {
-  // last_seen уже обновляется в auth middleware при каждом запросе
-  ok(res, { ok: true });
-});
-
-// ONLINE STATUS
-app.get('/api/online/:username', auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      'SELECT MAX(last_seen) as last_seen FROM sessions WHERE username=$1',
-      [req.params.username]
-    );
-    const lastSeen = parseInt(r.rows[0]?.last_seen || 0);
-    // Онлайн = был активен в последние 30 секунд
-    const online = lastSeen > 0 && (Date.now() - lastSeen) < 30000;
-    ok(res, { online, last_seen: lastSeen });
   } catch (e) { err(res, e.message, 500); }
 });
 
