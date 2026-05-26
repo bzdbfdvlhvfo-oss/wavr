@@ -971,9 +971,8 @@
         }
 
         .mw:not(.me) .bbl {
-            background: rgba(28, 28, 38, .85);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,.04);
+            background: #1c1c1e;
+            border: none;
             border-bottom-left-radius: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,.15);
         }
@@ -1836,8 +1835,8 @@
             animation: aboxIn .22s ease;
         }
         @keyframes aboxIn {
-            from { opacity: 0; backdrop-filter: blur(0px); }
-            to { opacity: 1; backdrop-filter: blur(16px); }
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         @keyframes moverIn { from { opacity: 0; } to { opacity: 1; } }
 
