@@ -185,7 +185,7 @@ app.post('/api/logout', auth, async (req, res) => {
 // GET PROFILE
 app.get('/api/profile/:username', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT username,displayname,avatar,bio FROM users WHERE username=$1', [req.params.username]);
+    const r = await pool.query('SELECT username,displayname,avatar,bio,created_at FROM users WHERE username=$1', [req.params.username]);
     if (!r.rows.length) return err(res, 'Не найден', 404);
     ok(res, { user: r.rows[0] });
   } catch (e) { err(res, e.message, 500); }
