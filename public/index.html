@@ -1417,7 +1417,7 @@
         }
         .edit-bar-cancel:hover { background: rgba(240,80,80,.1); color: var(--rd); }
 
-        .ibar {
+                .ibar {
             padding: 10px 12px;
             padding-bottom: calc(10px + var(--sb));
             border-top: 1px solid var(--br);
@@ -4593,11 +4593,11 @@
         }
 
         // Override notifyMsg to also fire push
-        const _origNotifyMsg = notifyMsg;
-        function notifyMsg(from, text) {
-            _origNotifyMsg(from, text);
+        const _notifyMsgBase = notifyMsg;
+        notifyMsg = function(from, text) {
+            _notifyMsgBase(from, text);
             sendPushNotif(from, text);
-        }
+        };
 
         /* ════════════════════════════════════════
            TYPING INDICATOR
@@ -4709,9 +4709,10 @@
             document.getElementById('minp').style.height = '';
         }
 
-        // Patch sendMsg to handle edit
-        const _origSendMsg = sendMsg;
-        async function sendMsg() {
+        // Patch sendMsg to handle edit mode
+        // Using variable assignment to avoid function hoisting bug
+        const _sendMsgBase = sendMsg;
+        sendMsg = async function() {
             if (_editingId) {
                 const inp = document.getElementById('minp');
                 const text = inp.value.trim();
@@ -4726,10 +4727,8 @@
                         if (mw) {
                             const bbl = mw.querySelector('.bbl');
                             if (bbl) {
-                                // Update text node
                                 bbl.innerHTML = '';
                                 bbl.appendChild(document.createTextNode(text));
-                                // Add edited badge if not present
                                 if (!bbl.querySelector('.msg-edited')) {
                                     const ed = document.createElement('span');
                                     ed.className = 'msg-edited'; ed.textContent = 'изм.';
@@ -4742,8 +4741,8 @@
                 } catch (e) { toast('Ошибка', 'err'); }
                 return;
             }
-            await _origSendMsg();
-        }
+            await _sendMsgBase();
+        };
 
         /* ════════════════════════════════════════
            PIN MESSAGE
