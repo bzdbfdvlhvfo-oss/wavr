@@ -770,6 +770,133 @@
             }
         }
 
+        /* Auth box entrance */
+        @keyframes aboxIn {
+            from {
+                opacity: 0;
+                transform: translateY(24px) scale(.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .abox {
+            animation: aboxIn .45s cubic-bezier(.22, .9, .36, 1) both;
+        }
+
+        /* Online dot pulse */
+        @keyframes onPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 229, 160, .5), 0 0 8px var(--on);
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px rgba(0, 229, 160, 0), 0 0 8px var(--on);
+            }
+        }
+
+        .av-on::after {
+            animation: onPulse 2.4s ease-in-out infinite;
+        }
+
+        /* Chat area fade on switch */
+        @keyframes areaFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .marea.switching {
+            animation: areaFadeIn .22s ease both;
+        }
+
+        /* Skeleton shimmer */
+        @keyframes shimmer {
+            from {
+                background-position: -400px 0;
+            }
+
+            to {
+                background-position: 400px 0;
+            }
+        }
+
+        .skel {
+            border-radius: 10px;
+            background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+            background-size: 800px 100%;
+            animation: shimmer 1.4s infinite linear;
+        }
+
+        .skel-ci {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 9px 10px;
+            margin-bottom: 1px;
+        }
+
+        .skel-av {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .skel-lines {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .skel-ln {
+            height: 11px;
+            border-radius: 6px;
+        }
+
+        .skel-ln.w80 {
+            width: 80%;
+        }
+
+        .skel-ln.w55 {
+            width: 55%;
+        }
+
+        /* Sidebar active chat glow */
+        .ci.act {
+            box-shadow: 0 0 0 1px rgba(124, 111, 247, .25);
+        }
+
+        /* Toast slide-in */
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(60px) scale(.94);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .toast {
+            animation: toastIn .28s cubic-bezier(.22, .9, .36, 1) both;
+        }
+
         .mav {
             width: 26px;
             height: 26px;
@@ -2454,6 +2581,12 @@
 
     <!-- ══════ APP ══════ -->
     <div id="app">
+        <!-- Loading overlay — скрывается после первой загрузки чатов -->
+        <div id="loadingOverlay"
+            style="position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .35s">
+            <div style="font-size:28px;font-weight:800;letter-spacing:-1px">Wavr</div>
+            <span class="spin" style="width:28px;height:28px;border-width:3px"></span>
+        </div>
         <div class="layout">
 
             <!-- SIDEBAR -->
@@ -2539,6 +2672,17 @@
                         <div>Начните переписку!</div>
                     </div>
                 </div>
+                <!-- Pinned bar -->
+                <div class="pinbar" id="pinbar">
+                    <span class="pinbar-ico">📌</span>
+                    <span class="pinbar-text" id="pinbarText">Закреплённое сообщение</span>
+                    <button class="pinbar-close" id="pinbarClose" title="Открепить">✕</button>
+                </div>
+                <!-- Typing indicator -->
+                <div class="typing-wrap" id="typingWrap">
+                    <div class="typing-dots"><span></span><span></span><span></span></div>
+                    <span class="typing-label" id="typingLabel">печатает…</span>
+                </div>
                 <div class="reply-bar" id="replyBar">
                     <div class="reply-bar-inner">
                         <span class="rbi-from" id="rbiFrom"></span>
@@ -2546,16 +2690,31 @@
                     </div>
                     <button class="rbi-cancel" onclick="cancelReply()" title="Отмена">✕</button>
                 </div>
+                <!-- Edit bar -->
+                <div class="edit-bar" id="editBar">
+                    <span class="edit-bar-label">✏️ Редактировать</span>
+                    <span class="edit-bar-text" id="editBarText"></span>
+                    <button class="edit-bar-cancel" onclick="cancelEdit()" title="Отмена">✕</button>
+                </div>
                 <div class="ibar">
+                    <label class="mbtn" style="cursor:pointer" title="Фото/видео">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                        <input type="file" id="mfile" style="display:none" accept="image/*,video/*"
+                            onchange="onFilePick(event)" />
+                    </label>
                     <label class="mbtn" style="cursor:pointer" title="Файл">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                             viewBox="0 0 24 24">
                             <path
                                 d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                         </svg>
-                        <input type="file" id="mfile" style="display:none"
-                            accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt,.mp3,.wav"
-                            onchange="onFilePick(event)" />
+                        <input type="file" id="mfile2" style="display:none"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt,.mp3,.wav" onchange="onFilePick(event)" />
                     </label>
                     <textarea class="minp" id="minp" rows="1" placeholder="Написать…" onkeydown="onKey(event)"
                         oninput="autoH(this)"></textarea>
@@ -2697,6 +2856,16 @@
                 <button class="um-msg-btn" id="umMsgBtn">✉️ Написать сообщение</button>
             </div>
         </div>
+    </div>
+
+    <!-- Context menu -->
+    <div id="ctxMenu">
+        <div class="ctx-item" id="ctx-reply"><span class="ctx-ico">↩️</span> Ответить</div>
+        <div class="ctx-item" id="ctx-copy"><span class="ctx-ico">📋</span> Копировать</div>
+        <div class="ctx-item" id="ctx-edit"><span class="ctx-ico">✏️</span> Редактировать</div>
+        <div class="ctx-item" id="ctx-pin"><span class="ctx-ico">📌</span> Закрепить</div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item dng" id="ctx-del"><span class="ctx-ico">🗑</span> Удалить</div>
     </div>
 
     <!-- Toast -->
@@ -2939,9 +3108,9 @@
             loadChats();
             clearInterval(pollTid);
             clearInterval(_chatsTid);
-            // Poll messages fast (800ms), chats list slower (2000ms)
+            // Poll messages fast (800ms), chats list (1200ms)
             pollTid = setInterval(tickMsg, 800);
-            _chatsTid = setInterval(tickChats, 2000);
+            _chatsTid = setInterval(tickChats, 1200);
         }
 
         /* ════════════════════════════════════════
@@ -3257,6 +3426,18 @@
 
         async function loadChats() {
             try {
+                // Show skeleton on very first load
+                const el = document.getElementById('clist');
+                if (_lastChatsJson === null && !el.querySelector('.ci')) {
+                    el.innerHTML = Array(4).fill(0).map(() => `
+                      <div class="skel-ci">
+                        <div class="skel skel-av"></div>
+                        <div class="skel-lines">
+                          <div class="skel skel-ln w80"></div>
+                          <div class="skel skel-ln w55"></div>
+                        </div>
+                      </div>`).join('');
+                }
                 const r = await fetch('/api/chats', { headers: hdrs() });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
@@ -3277,13 +3458,16 @@
                                 notifyMsg(c.otherDisplayname, c.lastMessage || '');
                             }
                         });
-                    } catch(e) {}
+                    } catch (e) { }
                 }
 
                 _lastChatsJson = json;
                 renderChats(list);
                 const totalUnread = list.reduce((s, c) => s + (c.unread || 0), 0);
                 document.title = totalUnread > 0 ? `(${totalUnread}) Wavr` : 'Wavr';
+                // Скрываем загрузочный экран при первом ответе
+                const ov = document.getElementById('loadingOverlay');
+                if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(() => { ov.style.display = 'none'; }, 370); }
             } catch (e) { if (e.status === 401) throw e; }
         }
 
@@ -3364,7 +3548,7 @@
             _lastChatsJson = null;
             _chatReady = false;
             _chatPollBusy = false;
-            if (_pollAbort) { try { _pollAbort.abort(); } catch(e) {} _pollAbort = null; }
+            if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } _pollAbort = null; }
             cancelReply();
 
             const tbav = document.getElementById('tbav');
@@ -3377,9 +3561,13 @@
             document.getElementById('app').classList.add('co');
 
             const marea = document.getElementById('marea');
+            marea.classList.remove('switching');
+            void marea.offsetWidth; // reflow to restart animation
+            marea.classList.add('switching');
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
 
             await fetchAllMsgs();
+            document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
             markRead(username);
             _lastChatsJson = null; // force sidebar refresh after marking read
@@ -3424,7 +3612,7 @@
             if (!chatWith) return;
             const pollTarget = chatWith.username;
             // Cancel any previous stuck request
-            if (_pollAbort) { try { _pollAbort.abort(); } catch(e) {} }
+            if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } }
             _pollAbort = new AbortController();
             const signal = _pollAbort.signal;
             try {
@@ -3439,18 +3627,33 @@
 
                 const msgs = d.messages || [];
 
-                // Update DOM for already-seen messages that changed (e.g. deleted by friend)
+                // Update DOM for already-seen messages that changed (deleted or edited)
                 for (const m of msgs) {
-                    if (seenIds.has(m.id) && m.deleted) {
-                        const mw = document.querySelector(`[data-id="${m.id}"]`);
-                        if (mw) {
-                            const bbl = mw.querySelector('.bbl');
-                            if (bbl && !bbl.classList.contains('del')) {
-                                bbl.className = 'bbl del'; bbl.innerHTML = '';
-                                bbl.textContent = 'Сообщение удалено';
-                                mw.querySelectorAll('.mab').forEach(b => b.remove());
-                                mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
-                                mw.querySelector('.reply-quote')?.remove();
+                    if (!seenIds.has(m.id)) continue;
+                    const mw = document.querySelector(`[data-id="${m.id}"]`);
+                    if (!mw) continue;
+                    if (m.deleted) {
+                        const bbl = mw.querySelector('.bbl');
+                        if (bbl && !bbl.classList.contains('del')) {
+                            bbl.className = 'bbl del'; bbl.innerHTML = '';
+                            bbl.textContent = 'Сообщение удалено';
+                            mw.querySelectorAll('.mab').forEach(b => b.remove());
+                            mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
+                            mw.querySelector('.reply-quote')?.remove();
+                        }
+                    } else if (m.edited && m.type === 'text' && m.text) {
+                        const bbl = mw.querySelector('.bbl');
+                        if (bbl && !bbl.classList.contains('del')) {
+                            const curText = Array.from(bbl.childNodes)
+                                .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
+                            if (curText.trim() !== (m.text || '').trim()) {
+                                bbl.innerHTML = '';
+                                bbl.appendChild(document.createTextNode(m.text));
+                            }
+                            if (!bbl.querySelector('.msg-edited')) {
+                                const ed = document.createElement('span');
+                                ed.className = 'msg-edited'; ed.textContent = 'изм.';
+                                bbl.appendChild(ed);
                             }
                         }
                     }
@@ -3574,7 +3777,7 @@
                 mediaStore.set(m.id, d.text);
                 m.text = d.text;
                 injectMsgExtras(node, m);
-            } catch(e) {}
+            } catch (e) { }
         }
 
         /* ════════════════════════════════════════
@@ -3695,6 +3898,12 @@
                 // TEXT — ONLY a text node inside .bbl, reply-quote is OUTSIDE
                 const bbl = document.createElement('div'); bbl.className = 'bbl';
                 bbl.appendChild(document.createTextNode(m.text || ''));
+                // Show "изм." badge if message was edited
+                if (m.edited) {
+                    const ed = document.createElement('span');
+                    ed.className = 'msg-edited'; ed.textContent = 'изм.';
+                    bbl.appendChild(ed);
+                }
                 bodyInner.appendChild(bbl);
             }
 
@@ -4047,19 +4256,19 @@
                         id: d.id, from: me.username, displayname: me.displayname, text: sendData,
                         type: msgType, ts: d.ts, deleted: false, read_at: 0, reactions: {}, file_name: f.name, file_size: f.size
                     };
-                    seenIds.add(d.id);
                     appendMsgs([fake]);
+                    seenIds.add(d.id);
                     // НЕ обновляем lastTs здесь — по той же причине что и в sendMsg()
                     if (caption) {
                         const r2 = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify({ to: chatWith.username, text: caption }) });
                         const d2 = await r2.json();
                         if (d2.ok) {
-                            seenIds.add(d2.id);
                             const fake2 = {
                                 id: d2.id, from: me.username, displayname: me.displayname, text: caption,
                                 type: 'text', ts: d2.ts, deleted: false, read_at: 0, reactions: {}
                             };
-                            appendMsgs([fake2]); // lastTs не трогаем — doPoll обновит сам
+                            appendMsgs([fake2]);
+                            seenIds.add(d2.id); // после appendMsgs — иначе фильтруется
                         }
                     }
                     _lastChatsJson = null; loadChats();
@@ -4242,8 +4451,409 @@
         /* ════════════════════════════════════════
            INPUT HELPERS
         ════════════════════════════════════════ */
-        function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
+        function onKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); return; }
+            // Typing indicator: send on each keystroke (debounced)
+            sendTyping();
+        }
         function autoH(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 110) + 'px'; }
+
+        /* ════════════════════════════════════════
+           PUSH NOTIFICATIONS
+        ════════════════════════════════════════ */
+        let _pushGranted = false;
+        async function requestPush() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'granted') { _pushGranted = true; return; }
+            if (Notification.permission === 'denied') return;
+            const perm = await Notification.requestPermission();
+            _pushGranted = perm === 'granted';
+        }
+
+        function sendPushNotif(from, text) {
+            if (!_pushGranted || document.visibilityState === 'visible') return;
+            try {
+                const n = new Notification(from, {
+                    body: text.length > 60 ? text.slice(0, 60) + '…' : text,
+                    icon: '/favicon.ico',
+                    tag: 'wavr-msg-' + from,
+                    renotify: true,
+                    silent: false
+                });
+                n.onclick = () => { window.focus(); n.close(); };
+                setTimeout(() => n.close(), 5000);
+            } catch (e) { }
+        }
+
+        // Override notifyMsg to also fire push
+        const _origNotifyMsg = notifyMsg;
+        function notifyMsg(from, text) {
+            _origNotifyMsg(from, text);
+            sendPushNotif(from, text);
+        }
+
+        /* ════════════════════════════════════════
+           TYPING INDICATOR
+        ════════════════════════════════════════ */
+        let _typingTid = null, _typingLastSent = 0;
+        let _typingPollTid = null, _typingVisible = false;
+
+        function sendTyping() {
+            if (!chatWith || !token) return;
+            const now = Date.now();
+            if (now - _typingLastSent < 2500) return; // throttle: send at most every 2.5s
+            _typingLastSent = now;
+            fetch('/api/typing', { method: 'POST', headers: hdrs(), body: JSON.stringify({ to: chatWith.username }) }).catch(() => { });
+        }
+
+        function startTypingPoll() {
+            stopTypingPoll();
+            _typingPollTid = setInterval(pollTyping, 2000);
+        }
+        function stopTypingPoll() {
+            clearInterval(_typingPollTid); _typingPollTid = null;
+            setTypingVisible(false);
+        }
+
+        async function pollTyping() {
+            if (!chatWith || !token) return;
+            try {
+                const r = await fetch(`/api/typing?b=${encodeURIComponent(chatWith.username)}`, { headers: hdrs() });
+                const d = await r.json();
+                setTypingVisible(!!d.typing, chatWith.displayname);
+            } catch (e) { }
+        }
+
+        function setTypingVisible(v, name) {
+            const wrap = document.getElementById('typingWrap');
+            if (!wrap) return;
+            if (v === _typingVisible) return;
+            _typingVisible = v;
+            if (v) {
+                document.getElementById('typingLabel').textContent = (name || '') + ' печатает…';
+                wrap.classList.add('show');
+            } else {
+                wrap.classList.remove('show');
+            }
+        }
+
+        /* ════════════════════════════════════════
+           ONLINE PING
+        ════════════════════════════════════════ */
+        let _pingTid = null;
+        function startPing() {
+            stopPing();
+            doPing();
+            _pingTid = setInterval(doPing, 20000); // every 20s
+        }
+        function stopPing() { clearInterval(_pingTid); _pingTid = null; }
+        function doPing() {
+            if (!token) return;
+            fetch('/api/ping', { method: 'POST', headers: hdrs() }).catch(() => { });
+        }
+
+        // Poll partner online status
+        let _onlinePollTid = null;
+        function startOnlinePoll() {
+            stopOnlinePoll();
+            _onlinePollTid = setInterval(pollOnline, 15000);
+        }
+        function stopOnlinePoll() { clearInterval(_onlinePollTid); _onlinePollTid = null; }
+
+        async function pollOnline() {
+            if (!chatWith || !token) return;
+            try {
+                const r = await fetch(`/api/online/${encodeURIComponent(chatWith.username)}`, { headers: hdrs() });
+                const d = await r.json();
+                const st = document.getElementById('tbst');
+                if (!st) return;
+                if (d.online) {
+                    st.textContent = '● онлайн';
+                    st.style.color = 'var(--on)';
+                } else if (d.last_seen) {
+                    st.textContent = 'был ' + timeAgo(d.last_seen);
+                    st.style.color = '';
+                }
+            } catch (e) { }
+        }
+
+        /* ════════════════════════════════════════
+           EDIT MESSAGE
+        ════════════════════════════════════════ */
+        let _editingId = null;
+
+        function startEdit(msgId, currentText) {
+            _editingId = msgId;
+            _replyTo = null; // cancel reply if any
+            document.getElementById('replyBar').classList.remove('show');
+            document.getElementById('editBarText').textContent = currentText.slice(0, 60);
+            document.getElementById('editBar').classList.add('show');
+            const inp = document.getElementById('minp');
+            inp.value = currentText;
+            autoH(inp);
+            inp.focus();
+            inp.setSelectionRange(inp.value.length, inp.value.length);
+        }
+
+        function cancelEdit() {
+            _editingId = null;
+            document.getElementById('editBar').classList.remove('show');
+            document.getElementById('minp').value = '';
+            document.getElementById('minp').style.height = '';
+        }
+
+        // Patch sendMsg to handle edit
+        const _origSendMsg = sendMsg;
+        async function sendMsg() {
+            if (_editingId) {
+                const inp = document.getElementById('minp');
+                const text = inp.value.trim();
+                if (!text) return;
+                const id = _editingId;
+                cancelEdit();
+                try {
+                    const r = await fetch(`/api/message/${id}`, { method: 'PATCH', headers: hdrs(), body: JSON.stringify({ text }) });
+                    const d = await r.json();
+                    if (d.ok) {
+                        const mw = document.querySelector(`[data-id="${id}"]`);
+                        if (mw) {
+                            const bbl = mw.querySelector('.bbl');
+                            if (bbl) {
+                                // Update text node
+                                bbl.innerHTML = '';
+                                bbl.appendChild(document.createTextNode(text));
+                                // Add edited badge if not present
+                                if (!bbl.querySelector('.msg-edited')) {
+                                    const ed = document.createElement('span');
+                                    ed.className = 'msg-edited'; ed.textContent = 'изм.';
+                                    bbl.appendChild(ed);
+                                }
+                            }
+                        }
+                        toast('Изменено ✓');
+                    } else { toast(d.error || 'Ошибка', 'err'); }
+                } catch (e) { toast('Ошибка', 'err'); }
+                return;
+            }
+            await _origSendMsg();
+        }
+
+        /* ════════════════════════════════════════
+           PIN MESSAGE
+        ════════════════════════════════════════ */
+        let _pinnedMsgId = null;
+
+        async function pinMsg(msgId) {
+            try {
+                const r = await fetch(`/api/pin/${msgId}`, { method: 'POST', headers: hdrs() });
+                const d = await r.json();
+                if (d.ok) {
+                    if (d.pinned) {
+                        _pinnedMsgId = msgId;
+                        // Find text for pinbar
+                        const mw = document.querySelector(`[data-id="${msgId}"]`);
+                        let pinText = 'Закреплённое сообщение';
+                        if (mw) {
+                            const bbl = mw.querySelector('.bbl');
+                            if (bbl) pinText = bbl.textContent.trim().slice(0, 60) || pinText;
+                            mw.classList.add('pinned');
+                        }
+                        document.getElementById('pinbarText').textContent = pinText;
+                        document.getElementById('pinbar').classList.add('show');
+                        toast('Закреплено 📌');
+                    } else {
+                        // Unpinned
+                        const mw = document.querySelector(`[data-id="${msgId}"]`);
+                        if (mw) mw.classList.remove('pinned');
+                        if (_pinnedMsgId === msgId) {
+                            _pinnedMsgId = null;
+                            document.getElementById('pinbar').classList.remove('show');
+                        }
+                        toast('Откреплено');
+                    }
+                }
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        // Setup pinbar
+        document.getElementById('pinbar')?.addEventListener('click', e => {
+            if (e.target.id === 'pinbarClose') {
+                // Just visually hide pinbar (don't unpin from server)
+                document.getElementById('pinbar').classList.remove('show');
+                return;
+            }
+            if (_pinnedMsgId) {
+                const tgt = document.querySelector(`[data-id="${_pinnedMsgId}"]`);
+                if (tgt) tgt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+
+        /* ════════════════════════════════════════
+           CONTEXT MENU
+        ════════════════════════════════════════ */
+        let _ctxMsgId = null, _ctxIsMe = false, _ctxText = '';
+
+        function showCtxMenu(e, mw) {
+            e.preventDefault();
+            _ctxMsgId = mw.dataset.id;
+            _ctxIsMe = mw.classList.contains('me');
+            // Get text for copy/edit
+            const bbl = mw.querySelector('.bbl');
+            _ctxText = bbl ? Array.from(bbl.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim() : '';
+            const isDeleted = bbl?.classList.contains('del');
+
+            const menu = document.getElementById('ctxMenu');
+            // Show/hide items based on context
+            document.getElementById('ctx-edit').style.display = (_ctxIsMe && !isDeleted && _ctxText) ? 'flex' : 'none';
+            document.getElementById('ctx-del').style.display = (_ctxIsMe && !isDeleted) ? 'flex' : 'none';
+            document.getElementById('ctx-copy').style.display = _ctxText ? 'flex' : 'none';
+            document.getElementById('ctx-pin').style.display = isDeleted ? 'none' : 'flex';
+            document.getElementById('ctx-pin').querySelector('span').textContent = '📌';
+
+            menu.style.display = 'block';
+            // Position
+            const menuH = 220, menuW = 190;
+            let x = e.clientX ?? (e.touches?.[0]?.clientX ?? 100);
+            let y = e.clientY ?? (e.touches?.[0]?.clientY ?? 100);
+            if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+            if (y + menuH > window.innerHeight - 8) y = y - menuH;
+            if (y < 8) y = 8;
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+        }
+
+        function closeCtxMenu() {
+            document.getElementById('ctxMenu').style.display = 'none';
+            _ctxMsgId = null;
+        }
+
+        // Context menu item handlers
+        document.getElementById('ctx-reply').addEventListener('click', () => {
+            if (!_ctxMsgId) return;
+            const mw = document.querySelector(`[data-id="${_ctxMsgId}"]`);
+            if (!mw) return;
+            const replyBtn = mw.querySelector('[data-reply-id]');
+            if (replyBtn) {
+                startReply(parseInt(replyBtn.dataset.replyId), replyBtn.dataset.replyFrom, replyBtn.dataset.replyText);
+            }
+            closeCtxMenu();
+        });
+        document.getElementById('ctx-copy').addEventListener('click', () => {
+            if (_ctxText) { navigator.clipboard?.writeText(_ctxText).then(() => toast('Скопировано')).catch(() => { }); }
+            closeCtxMenu();
+        });
+        document.getElementById('ctx-edit').addEventListener('click', () => {
+            if (_ctxMsgId && _ctxText) startEdit(_ctxMsgId, _ctxText);
+            closeCtxMenu();
+        });
+        document.getElementById('ctx-pin').addEventListener('click', () => {
+            if (_ctxMsgId) pinMsg(_ctxMsgId);
+            closeCtxMenu();
+        });
+        document.getElementById('ctx-del').addEventListener('click', () => {
+            if (_ctxMsgId) delMsg(_ctxMsgId);
+            closeCtxMenu();
+        });
+
+        // Close on outside click
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#ctxMenu')) closeCtxMenu();
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeCtxMenu();
+        }, true);
+
+        // Attach context menu to message area (event delegation)
+        document.getElementById('marea').addEventListener('contextmenu', e => {
+            const mw = e.target.closest('.mw');
+            if (!mw) return;
+            showCtxMenu(e, mw);
+        });
+
+        // Also patch setupLongPress to show context menu on mobile
+        const _origSetupLongPress = setupLongPress;
+        function setupLongPress() {
+            document.querySelectorAll('.mw:not([data-lp])').forEach(mw => {
+                mw.dataset.lp = '1';
+                let _tid = null;
+                mw.addEventListener('touchstart', ev => {
+                    _tid = setTimeout(() => {
+                        const touch = ev.touches[0];
+                        const fakeE = { preventDefault: () => { }, clientX: touch.clientX, clientY: touch.clientY };
+                        showCtxMenu(fakeE, mw);
+                        document.querySelectorAll('.mw.show-acts').forEach(m => m.classList.remove('show-acts'));
+                    }, 500);
+                }, { passive: true });
+                mw.addEventListener('touchend', () => clearTimeout(_tid), { passive: true });
+                mw.addEventListener('touchmove', () => clearTimeout(_tid), { passive: true });
+            });
+        }
+
+        /* ════════════════════════════════════════
+           PATCH openChat to start/stop helpers
+        ════════════════════════════════════════ */
+        const _origOpenChat = openChat;
+        async function openChat(username, displayname, avatar) {
+            stopTypingPoll();
+            stopOnlinePoll();
+            await _origOpenChat(username, displayname, avatar);
+            startTypingPoll();
+            startOnlinePoll();
+            pollOnline(); // immediate first check
+            // Show any pinned message
+            showPinnedBar();
+        }
+
+        function showPinnedBar() {
+            // Find pinned message in current chat
+            const pinned = document.querySelector('.mw.pinned, [data-id]');
+            // We'll scan all rendered messages for pinned=true (stored in dataset)
+            const all = document.querySelectorAll('.mw[data-id]');
+            let foundPin = null;
+            // Since we don't store pinned in dataset easily, skip — server sends it via messages
+            // It gets shown when messages load via renderAll check below
+        }
+
+        /* ════════════════════════════════════════
+           PATCH renderAll to detect pinned messages
+        ════════════════════════════════════════ */
+        const _origRenderAll = renderAll;
+        function renderAll(msgs) {
+            _pinnedMsgId = null;
+            document.getElementById('pinbar').classList.remove('show');
+            _origRenderAll(msgs);
+            // After render, find pinned msg
+            const pinMsg2 = msgs.find(m => m.pinned && !m.deleted);
+            if (pinMsg2) {
+                _pinnedMsgId = pinMsg2.id;
+                const mw = document.querySelector(`[data-id="${pinMsg2.id}"]`);
+                if (mw) mw.classList.add('pinned');
+                let pinText = pinMsg2.type === 'image' ? '📷 Фото' : pinMsg2.type === 'video' ? '🎬 Видео' :
+                    pinMsg2.type === 'file' ? '📎 Файл' : (pinMsg2.text || '').slice(0, 60);
+                document.getElementById('pinbarText').textContent = pinText;
+                document.getElementById('pinbar').classList.add('show');
+            }
+        }
+
+        /* ════════════════════════════════════════
+           PATCH enterApp to start ping + request push
+        ════════════════════════════════════════ */
+        const _origEnterApp = enterApp;
+        function enterApp() {
+            _origEnterApp();
+            startPing();
+            // Request push permission after a short delay (less intrusive)
+            setTimeout(requestPush, 3000);
+        }
+
+        /* ════════════════════════════════════════
+           PATCH doLogout to stop helpers
+        ════════════════════════════════════════ */
+        const _origDoLogout = doLogout;
+        async function doLogout() {
+            stopPing(); stopTypingPoll(); stopOnlinePoll();
+            await _origDoLogout();
+        }
 
         /* ════════════════════════════════════════
            BOOT
