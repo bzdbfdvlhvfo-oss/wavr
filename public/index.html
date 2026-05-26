@@ -992,6 +992,10 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity .15s;
+            /* Extend hit area inward to cover gap between bubble and buttons */
+            padding: 0 6px;
+            margin-left: -6px;
+            margin-right: -6px;
         }
 
         .mw:hover .macts,
@@ -3809,6 +3813,27 @@
                     if (u.read_at > 0) {
                         const t = document.querySelector(`[data-id="${u.id}"] .mtick`);
                         if (t) { t.textContent = '✓✓'; t.className = 'mtick r'; }
+                    }
+                }
+
+                // Pinned message update via poll
+                for (const m of msgs) {
+                    if (!seenIds.has(m.id)) continue;
+                    if (m.pinned && !m.deleted) {
+                        if (_pinnedMsgId !== m.id) {
+                            _pinnedMsgId = m.id;
+                            const mw2 = document.querySelector(`[data-id="${m.id}"]`);
+                            if (mw2) mw2.classList.add('pinned');
+                            let pinText = m.type === 'image' ? '📷 Фото' : m.type === 'video' ? '🎬 Видео' :
+                                m.type === 'file' ? '📎 Файл' : (m.text || '').slice(0, 60);
+                            document.getElementById('pinbarText').textContent = pinText;
+                            document.getElementById('pinbar').classList.add('show');
+                        }
+                    } else if (!m.pinned && _pinnedMsgId === m.id) {
+                        _pinnedMsgId = null;
+                        const mw2 = document.querySelector(`[data-id="${m.id}"]`);
+                        if (mw2) mw2.classList.remove('pinned');
+                        document.getElementById('pinbar').classList.remove('show');
                     }
                 }
 
