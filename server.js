@@ -4,33 +4,53 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const crypto = require('crypto');
 
+try { require('dotenv').config(); } catch (e) { /* dotenv optional */ }
+
+try { require('dotenv').config(); } catch (e) { /* optional */ }
+
 const app = express();
 app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use((req, res, next) => {
+  if (process.env.LOG_REQUESTS) console.log(`${req.method} ${req.path}`);
+  next();
+});
 
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+pool.on('error', (err) => console.error('Pool error:', err.message));
 
-// Rate limiting
+// Rate limiting — automatic cleanup every 5 min + proactive eviction
 const rl = new Map();
 function rateLimit(key, max, ms) {
   const now = Date.now();
-  const e = rl.get(key) || { n: 0, r: now + ms };
-  if (now > e.r) { e.n = 0; e.r = now + ms; }
+  let e = rl.get(key);
+  if (!e || now > e.r) { e = { n: 0, r: now + ms }; }
   e.n++;
   rl.set(key, e);
   return e.n > max;
 }
-setInterval(() => { const now = Date.now(); for (const [k, v] of rl) if (now > v.r) rl.delete(k); }, 5 * 60 * 1000);
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of rl) if (now > v.r) rl.delete(k);
+  if (rl.size > 10000) rl.clear();
+}, 5 * 60 * 1000);
 
-// Чистим устаревшие typing_status (старше 10 секунд) каждые 30 секунд
 setInterval(() => {
   pool.query('DELETE FROM typing_status WHERE ts < $1', [Date.now() - 10000]).catch(() => {});
 }, 30 * 1000);
@@ -65,35 +85,42 @@ async function initDB() {
       ts        BIGINT NOT NULL,
       deleted   BOOLEAN DEFAULT FALSE,
       read_at   BIGINT DEFAULT 0,
-      reactions TEXT DEFAULT '{}'
+      reactions TEXT DEFAULT '{}',
+      file_name TEXT,
+      file_size BIGINT DEFAULT 0,
+      reply_to  INT DEFAULT NULL,
+      reply_preview TEXT DEFAULT NULL,
+      pinned    BOOLEAN DEFAULT FALSE,
+      edited    BOOLEAN DEFAULT FALSE
     );
-    CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_key, ts);
-    CREATE INDEX IF NOT EXISTS idx_sessions  ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_msg_chat    ON messages(chat_key, ts);
+    CREATE INDEX IF NOT EXISTS idx_sessions     ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_msg_from     ON messages(from_user);
+    CREATE INDEX IF NOT EXISTS idx_msg_to       ON messages(to_user);
+
+    CREATE TABLE IF NOT EXISTS hidden_chats (
+      username  TEXT NOT NULL,
+      chat_key  TEXT NOT NULL,
+      hidden_at BIGINT NOT NULL,
+      PRIMARY KEY (username, chat_key)
+    );
+    CREATE TABLE IF NOT EXISTS typing_status (
+      username  TEXT NOT NULL,
+      to_user   TEXT NOT NULL,
+      ts        BIGINT NOT NULL,
+      PRIMARY KEY (username, to_user)
+    );
   `);
 
   const migs = [
-    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS avatar    TEXT`,
-    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS bio       TEXT DEFAULT ''`,
-    `ALTER TABLE users    ADD COLUMN IF NOT EXISTS reg_ip    TEXT DEFAULT 'unknown'`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted   BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS type      TEXT DEFAULT 'text'`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at   BIGINT DEFAULT 0`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}'`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username   TEXT`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000 + 2592000000)`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''`,
-    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to  INT DEFAULT NULL`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT NULL`,
-    `CREATE TABLE IF NOT EXISTS hidden_chats (username TEXT NOT NULL, chat_key TEXT NOT NULL, hidden_at BIGINT NOT NULL, PRIMARY KEY (username, chat_key))`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE`,
-    `CREATE TABLE IF NOT EXISTS typing_status (username TEXT NOT NULL, to_user TEXT NOT NULL, ts BIGINT NOT NULL, PRIMARY KEY (username, to_user))`,
-    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name      TEXT`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size      BIGINT DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to       INT DEFAULT NULL`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview  TEXT DEFAULT NULL`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned         BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited         BOOLEAN DEFAULT FALSE`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch (e) { } }
-  // Чистим старые сессии
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { }
   console.log('DB ready');
 }
@@ -250,11 +277,11 @@ app.post('/api/send', auth, async (req, res) => {
     const { to, text, type, fileName, fileSize } = req.body;
     const allowedTypes = ['text', 'image', 'video', 'file'];
     const msgType = allowedTypes.includes(type) ? type : 'text';
-    // Для медиа text — это base64, не trim
     if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
     if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
     if (!to) return err(res, 'Неверные данные');
     if (rateLimit(`msg:${req.username}`, 60, 60 * 1000)) return err(res, 'Слишком много сообщений', 429);
+    if (msgType === 'text' && text.length > 10000) return err(res, 'Текст слишком длинный', 400);
     if (msgType !== 'text' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
     const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
     if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
@@ -418,16 +445,14 @@ app.get('/api/poll', auth, async (req, res) => {
       [key, fromTs]
     );
 
-    // Обновления read_at для своих сообщений за последние 24 часа (not sinceTs — that was wrong)
     const readUpdates = await pool.query(
-      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at>0 AND ts > $3`,
-      [key, req.username, Date.now() - 86400000]
+      `SELECT id, read_at FROM messages WHERE chat_key=$1 AND from_user=$2 AND read_at > 0 AND read_at > $3`,
+      [key, req.username, fromTs]
     );
 
-    // Обновления реакций для сообщений чата — только свежие (за последние 5 мин от now)
     const reactionUpdates = await pool.query(
-      `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2`,
-      [key, Date.now() - 300000]
+      `SELECT id, reactions FROM messages WHERE chat_key=$1 AND NOT deleted AND ts > $2 AND reactions != '{}'`,
+      [key, fromTs]
     );
 
     ok(res, {

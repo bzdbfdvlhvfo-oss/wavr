@@ -984,16 +984,20 @@
 
         /* Message action buttons */
         .macts {
-            display: none;
+            display: flex;
             flex-direction: column;
             gap: 3px;
             align-self: flex-end;
             margin-bottom: 4px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .15s;
         }
 
         .mw:hover .macts,
         .mw.show-acts .macts {
-            display: flex;
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .mab {
@@ -2344,7 +2348,7 @@
             backdrop-filter: blur(12px);
         }
 
-        #adminPanel.mover {
+        #adminPanel.show {
             display: flex;
         }
 
@@ -2977,7 +2981,7 @@
     <div id="toast-wrap"></div>
 
     <!-- Admin panel -->
-    <div id="adminPanel" style="display:none" class="mover" onclick="if(event.target===this)closeAdmin()">
+    <div id="adminPanel" style="display:none" onclick="if(event.target===this)closeAdmin()">
         <div class="admin-modal">
             <button class="mcl" onclick="closeAdmin()">✕</button>
             <div class="admin-head">
@@ -4185,7 +4189,7 @@
                 if (v && _pickerMsgId != null) { doReact(_pickerMsgId, v); closePicker(); }
             }
         });
-        document.addEventListener('click', e => {
+        document.addEventListener('mousedown', e => {
             if (!e.target.closest('#epick') && !e.target.closest('[data-picker-btn]')) closePicker();
         });
 
