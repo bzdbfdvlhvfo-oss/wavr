@@ -4085,9 +4085,7 @@
             t.style.cssText = 'cursor:pointer;pointer-events:all;max-width:260px;';
             const preview = text.length > 40 ? text.slice(0, 40) + '…' : text;
             t.innerHTML = `<span>💬</span><div><div style="font-weight:700;font-size:12px">${esc(from)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
-            // Clicking the toast opens that chat
             t.addEventListener('click', function () {
-                // Find username from displayname in chats cache
                 try {
                     const list = JSON.parse(_lastChatsJson || '[]');
                     const match = list.find(c => c.otherDisplayname === from);
@@ -4099,6 +4097,7 @@
                 t.style.transition = 'opacity .3s'; t.style.opacity = '0';
                 setTimeout(() => t.remove(), 320);
             }, 4000);
+            sendPushNotif(from, text);
         }
 
         function renderChats(list) {
@@ -4249,7 +4248,8 @@
                     const firstChild = a.firstChild;
                     // Find last date before insertion point
                     if (firstChild && firstChild.classList?.contains('dsep')) ld = firstChild.textContent;
-                    msgs.forEach(m => {
+                    for (let i = msgs.length - 1; i >= 0; i--) {
+                        const m = msgs[i];
                         if (m.from && m.displayname) _userDnCache[m.from] = m.displayname;
                         const d = fd(m.ts);
                         if (d !== ld) {
@@ -4259,7 +4259,7 @@
                         const node = buildMsgNode(m);
                         a.insertBefore(node, a.firstChild);
                         injectMsgExtras(node, m);
-                    });
+                    }
                     // Keep scroll position
                     a.scrollTop = a.scrollHeight - prevScroll;
                     applyMsgGrouping();
@@ -4270,19 +4270,14 @@
 
         function trimMessages() {
             const a = document.getElementById('marea');
-            while (a.children.length > 400) {
+            let maxIter = a.children.length;
+            while (a.children.length > 400 && maxIter-- > 0) {
                 const c = a.firstChild;
                 if (!c) break;
-                // Skip pinned messages
                 if (c.classList?.contains('mw') && c.classList.contains('pinned')) { a.appendChild(c); continue; }
-                // Skip date separators that have no .mw siblings after them
                 const next = c.nextSibling;
                 if (c.classList?.contains('dsep') && next && next.classList?.contains('dsep')) { c.remove(); continue; }
-                if (c.classList?.contains('mw') || c.classList?.contains('dsep') || c.classList?.contains('empty-chat')) {
-                    c.remove();
-                } else {
-                    c.remove();
-                }
+                c.remove();
                 if (a.children.length <= 300) break;
             }
         }
@@ -5343,7 +5338,7 @@
            INPUT HELPERS
         ════════════════════════════════════════ */
         function onKey(e) {
-            if (e.key === 'Enter' && !e.shiftKey && localStorage.getItem('wavr_enter') !== '0') { e.preventDefault(); sendMsg(); return; }
+            if (e.key === 'Enter' && !e.shiftKey && localStorage.getItem('wavr_enter') !== '0') { e.preventDefault(); return; }
             sendTyping();
         }
         function autoH(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 110) + 'px'; }
@@ -5394,13 +5389,6 @@
             keys.forEach(k => { if (visible.has(k)) keep.add(k); });
             for (const k of keys) { if (!keep.has(k)) mediaStore.delete(k); }
         }, 120000);
-
-        // Override notifyMsg to also fire push
-        const _origNotifyMsg = notifyMsg;
-        notifyMsg = function (from, text) {
-            _origNotifyMsg(from, text);
-            sendPushNotif(from, text);
-        }
 
         /* ════════════════════════════════════════
            TYPING INDICATOR
