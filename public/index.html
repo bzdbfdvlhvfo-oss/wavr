@@ -1848,6 +1848,16 @@
    MODALS
 ══════════════════════════════════════════ */
         .mover {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .75);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             animation: aboxIn .22s ease;
         }
         @keyframes aboxIn {
