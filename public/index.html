@@ -1312,6 +1312,111 @@
             color: var(--rd);
         }
 
+        /* ── Pinned message bar */
+        .pinbar {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            background: rgba(124, 111, 247, .08);
+            border-top: 1px solid rgba(124, 111, 247, .18);
+            border-left: 3px solid var(--ac);
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .pinbar.show { display: flex; }
+        .pinbar:hover { background: rgba(124, 111, 247, .13); }
+        .pinbar-ico { font-size: 13px; flex-shrink: 0; }
+        .pinbar-text {
+            flex: 1;
+            font-size: 12px;
+            color: var(--t2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pinbar-close {
+            background: none;
+            border: none;
+            color: var(--t3);
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all .12s;
+        }
+        .pinbar-close:hover { background: rgba(240,80,80,.1); color: var(--rd); }
+
+        /* ── Typing indicator */
+        .typing-wrap {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 14px;
+            flex-shrink: 0;
+        }
+        .typing-wrap.show { display: flex; }
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+        .typing-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--t2);
+            animation: typingBounce 1.2s ease-in-out infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: .2s; }
+        .typing-dots span:nth-child(3) { animation-delay: .4s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
+        .typing-label { font-size: 12px; color: var(--t2); }
+
+        /* ── Edit bar */
+        .edit-bar {
+            display: none;
+            align-items: center;
+            gap: 9px;
+            padding: 8px 14px;
+            background: rgba(255, 183, 77, .07);
+            border-top: 1px solid rgba(255, 183, 77, .2);
+            border-left: 3px solid #ffb74d;
+            flex-shrink: 0;
+        }
+        .edit-bar.show { display: flex; }
+        .edit-bar-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffb74d;
+            flex-shrink: 0;
+        }
+        .edit-bar-text {
+            flex: 1;
+            font-size: 12px;
+            color: var(--t2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .edit-bar-cancel {
+            background: none;
+            border: none;
+            color: var(--t3);
+            font-size: 16px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all .12s;
+        }
+        .edit-bar-cancel:hover { background: rgba(240,80,80,.1); color: var(--rd); }
+
         .ibar {
             padding: 10px 12px;
             padding-bottom: calc(10px + var(--sb));
@@ -3554,7 +3659,9 @@
             const tbav = document.getElementById('tbav');
             setAv(tbav, chatWith.avatar || null, avc(username), displayname);
             document.getElementById('tbname').textContent = displayname;
-            document.getElementById('tbst').textContent = '@' + username;
+            const tbst = document.getElementById('tbst');
+            tbst.textContent = '@' + username;
+            tbst.style.color = '';
 
             document.getElementById('nochat').style.display = 'none';
             document.getElementById('cmain').style.display = 'flex';
@@ -4486,12 +4593,11 @@
         }
 
         // Override notifyMsg to also fire push
-        // Using variable assignment to avoid function hoisting overwrite bug
-        const _notifyMsgBase = notifyMsg;
-        notifyMsg = function(from, text) {
-            _notifyMsgBase(from, text);
+        const _origNotifyMsg = notifyMsg;
+        function notifyMsg(from, text) {
+            _origNotifyMsg(from, text);
             sendPushNotif(from, text);
-        };
+        }
 
         /* ════════════════════════════════════════
            TYPING INDICATOR
@@ -4557,7 +4663,7 @@
         let _onlinePollTid = null;
         function startOnlinePoll() {
             stopOnlinePoll();
-            _onlinePollTid = setInterval(pollOnline, 15000);
+            _onlinePollTid = setInterval(pollOnline, 8000);
         }
         function stopOnlinePoll() { clearInterval(_onlinePollTid); _onlinePollTid = null; }
 
@@ -4603,11 +4709,9 @@
             document.getElementById('minp').style.height = '';
         }
 
-        // Patch sendMsg to handle edit mode
-        // NOTE: we do NOT redeclare sendMsg here to avoid function hoisting overwrite bug.
-        // Instead we inject edit logic directly into the original sendMsg by wrapping it.
-        const _sendMsgBase = sendMsg;
-        sendMsg = async function sendMsg() {
+        // Patch sendMsg to handle edit
+        const _origSendMsg = sendMsg;
+        async function sendMsg() {
             if (_editingId) {
                 const inp = document.getElementById('minp');
                 const text = inp.value.trim();
@@ -4638,8 +4742,8 @@
                 } catch (e) { toast('Ошибка', 'err'); }
                 return;
             }
-            await _sendMsgBase();
-        };
+            await _origSendMsg();
+        }
 
         /* ════════════════════════════════════════
            PIN MESSAGE
