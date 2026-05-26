@@ -5619,9 +5619,14 @@
             document.getElementById('ctx-del').style.display = (_ctxIsMe && !isDeleted) ? 'flex' : 'none';
             document.getElementById('ctx-copy').style.display = _ctxText ? 'flex' : 'none';
             document.getElementById('ctx-pin').style.display = isDeleted ? 'none' : 'flex';
-            document.getElementById('ctx-pin').querySelector('span').textContent = '📌';
+            const isPinned = mw.classList.contains('pinned');
+            const pinSpan = document.getElementById('ctx-pin').querySelector('span');
+            pinSpan.textContent = '📌';
+            const pinLabel = pinSpan.nextSibling;
+            if (pinLabel) pinLabel.textContent = isPinned ? ' Открепить' : ' Закрепить';
 
             menu.style.display = 'block';
+            menu.classList.add('open');
             // Position
             const menuH = 220, menuW = 190;
             let x = e.clientX ?? (e.touches?.[0]?.clientX ?? 100);
@@ -5634,7 +5639,9 @@
         }
 
         function closeCtxMenu() {
-            document.getElementById('ctxMenu').style.display = 'none';
+            const menu = document.getElementById('ctxMenu');
+            menu.classList.remove('open');
+            menu.style.display = 'none';
             _ctxMsgId = null;
         }
 
