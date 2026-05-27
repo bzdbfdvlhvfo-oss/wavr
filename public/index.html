@@ -4305,6 +4305,18 @@
 
     <script>
         /* ════════════════════════════════════════
+           GLOBAL ERROR BOUNDARY
+        ════════════════════════════════════════ */
+        window.onerror = function(msg, src, line, col, err) {
+            console.error('Wavr error:', msg, 'at', src, line);
+            if (err && err.stack) console.error(err.stack);
+            return false; // let default handler also run
+        };
+        window.onunhandledrejection = function(ev) {
+            console.error('Wavr unhandled rejection:', ev.reason);
+        };
+
+        /* ════════════════════════════════════════
            STATE
         ════════════════════════════════════════ */
         let me = null, token = null, chatWith = null, pollTid = null, _chatsTid = null;
@@ -5498,28 +5510,27 @@
         }
 
         function applyMsgGrouping() {
-            const a = document.getElementById('marea');
-            const items = a.querySelectorAll('.mw');
-            items.forEach(mw => mw.classList.remove('group'));
-            // Walk backwards — group consecutive messages from same user within 5 min
-            for (let i = 1; i < items.length; i++) {
-                const prev = items[i - 1];
-                const cur = items[i];
-                const prevFrom = prev.dataset.from;
-                const curFrom = cur.dataset.from;
-                if (!prevFrom || !curFrom) continue;
-                const prevTs = parseInt(prev.dataset.ts || 0);
-                const curTs = parseInt(cur.dataset.ts || 0);
-                if (prevFrom === curFrom && curTs - prevTs < 300000 && curTs > 0 && prevTs > 0) {
-                    prev.classList.add('group');
+            requestAnimationFrame(() => {
+                const a = document.getElementById('marea');
+                const items = a.querySelectorAll('.mw');
+                items.forEach(mw => mw.classList.remove('group'));
+                for (let i = 1; i < items.length; i++) {
+                    const prev = items[i - 1];
+                    const cur = items[i];
+                    if (!prev.dataset.from || !cur.dataset.from) continue;
+                    if (prev.dataset.from === cur.dataset.from && parseInt(cur.dataset.ts) - parseInt(prev.dataset.ts) < 300000) {
+                        prev.classList.add('group');
+                    }
                 }
-            }
+            });
         }
 
         function staggerMessages() {
-            const a = document.getElementById('marea');
-            const items = a.querySelectorAll('.mw');
-            items.forEach((mw, i) => mw.style.setProperty('--i', i));
+            requestAnimationFrame(() => {
+                const a = document.getElementById('marea');
+                const items = a.querySelectorAll('.mw');
+                items.forEach((mw, i) => mw.style.setProperty('--i', i));
+            });
         }
 
         function renderAll(msgs) {
