@@ -21,14 +21,22 @@ jobs:
           java-version: 17
 
       - name: Accept Android SDK licenses
-        run: |
-          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>/dev/null || true
+        run: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>/dev/null || true
 
-      - name: Install Capacitor locally
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android
+      - name: Install deps
+        run: npm install
+
+      - name: Show cap version
+        run: npx cap --version 2>&1 || echo "CAP_NOT_FOUND"
+
+      - name: Init (if needed)
+        run: npx cap init --web-dir public wavr com.wavr.messenger 2>&1 || true
+
+      - name: List node_modules/.bin
+        run: ls -la node_modules/.bin/ | head -20
 
       - name: Add Android platform
-        run: npx cap add android
+        run: npx cap add android 2>&1 || npx @capacitor/cli add android 2>&1
 
       - name: Sync web content
         run: npx cap copy
@@ -41,6 +49,3 @@ jobs:
         with:
           name: wavr-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Cleanup capacitor deps (keep server deps)
-        run: npm uninstall @capacitor/core @capacitor/cli @capacitor/android && npm prune
