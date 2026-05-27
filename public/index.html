@@ -7808,14 +7808,32 @@
 
         async function sendVoice(dataUrl) {
             if (!chatWith) return;
+            // Optimistic fake message
+            const tmpTs = Date.now();
+            const fake = { id: 't' + tmpTs, from: me.username, displayname: me.displayname, text: dataUrl, type: 'voice', ts: tmpTs, deleted: false, read_at: 0, reactions: {}, _fake: true, file_name: 'Голосовое', file_size: 0, reply_to: null, reply_preview: null };
+            appendMsgs([fake]);
             try {
                 const body = { type: 'voice', text: dataUrl };
                 if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
                 else body.to = chatWith.username;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
                 const d = await r.json();
-                if (!r.ok) return toast(d.error, 'err');
-            } catch (e) { toast('Ошибка', 'err'); }
+                if (d.ok) {
+                    seenIds.add(d.id);
+                    const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                    if (el) el.dataset.id = d.id;
+                    _lastChatsJson = null; loadChats();
+                    if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
+                } else {
+                    const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                    if (el) el.remove();
+                    toast(d.error || 'Ошибка', 'err');
+                }
+            } catch (e) {
+                const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                if (el) el.remove();
+                toast('Ошибка сети', 'err');
+            }
         }
 
         /* ════════════════════════════════════════
@@ -7853,15 +7871,33 @@
             });
             if (opts.length < 2) return toast('Минимум 2 варианта', 'err');
             const pollJSON = JSON.stringify({ question: q, options: opts, votes: [], multiple: false });
+            cancelPollCreate();
+            // Optimistic fake message
+            const tmpTs = Date.now();
+            const fake = { id: 't' + tmpTs, from: me.username, displayname: me.displayname, text: pollJSON, type: 'poll', ts: tmpTs, deleted: false, read_at: 0, reactions: {}, _fake: true, reply_to: null, reply_preview: null };
+            appendMsgs([fake]);
             try {
                 const body = { type: 'poll', text: pollJSON };
                 if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
                 else body.to = chatWith.username;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
                 const d = await r.json();
-                if (!r.ok) return toast(d.error, 'err');
-                cancelPollCreate();
-            } catch (e) { toast('Ошибка', 'err'); }
+                if (d.ok) {
+                    seenIds.add(d.id);
+                    const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                    if (el) el.dataset.id = d.id;
+                    _lastChatsJson = null; loadChats();
+                    if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
+                } else {
+                    const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                    if (el) el.remove();
+                    toast(d.error || 'Ошибка', 'err');
+                }
+            } catch (e) {
+                const el = document.querySelector(`[data-id="t${tmpTs}"]`);
+                if (el) el.remove();
+                toast('Ошибка сети', 'err');
+            }
         }
 
         async function votePoll(id, option) {
