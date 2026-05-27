@@ -588,8 +588,10 @@
             transition: background .3s;
             position: relative;
             top: -2px;
+            animation: cs-pulse 2s infinite;
         }
-        .cs-dot.on { background: #4caf50; }
+        .cs-dot.on { background: #4caf50; animation: none; }
+        @keyframes cs-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
         .ib {
             width: 32px;
@@ -1901,6 +1903,7 @@
         .minp:focus {
             border-color: var(--ac);
             background: rgba(124, 111, 247, .06);
+            box-shadow: 0 0 0 3px rgba(124,111,247,.12);
             box-shadow: 0 0 0 3px rgba(124, 111, 247, .12), 0 0 16px rgba(124, 111, 247, .08);
         }
 
@@ -5217,6 +5220,10 @@
             document.getElementById('tbst').textContent = 'Группа';
             document.getElementById('tbav').onclick = openGrpInfo;
             document.querySelector('.tbinf').onclick = openGrpInfo;
+            // Async: fetch member count
+            fetch('/api/groups/' + groupId, { headers: hdrs() }).then(r => r.json()).then(d => {
+                if (d.members) document.getElementById('tbst').textContent = 'Группа · ' + d.members.length + ' участ.';
+            }).catch(() => {});
 
             document.getElementById('nochat').style.display = 'none';
             document.getElementById('cmain').style.display = 'flex';
