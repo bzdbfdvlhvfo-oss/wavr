@@ -3310,7 +3310,7 @@
             <label class="set-row"><span>Уведомления</span><input type="checkbox" id="setNotify" checked></label>
             <label class="set-row"><span>Показывать онлайн</span><input type="checkbox" id="setOnline" checked></label>
             <label class="set-row"><span>Цвет акцента</span><input type="color" id="setAccent" value="#7c6ff7" style="width:40px;height:28px;padding:0;border:1px solid var(--br2);border-radius:6px;background:transparent;cursor:pointer"></label>
-            <button class="set-install" id="setInstallBtn" onclick="installApp()" style="display:none">📲 Установить приложение</button>
+            <button class="set-install" id="setInstallBtn" onclick="installApp()">📲 Установить приложение</button>
             <div class="set-info">Wavr v1.0</div>
         </div>
     </div>
@@ -5074,14 +5074,15 @@
         window.addEventListener('beforeinstallprompt', e => {
             e.preventDefault();
             _deferredPrompt = e;
-            document.getElementById('setInstallBtn').style.display = '';
         });
         async function installApp() {
-            if (!_deferredPrompt) return;
-            _deferredPrompt.prompt();
-            const result = await _deferredPrompt.userChoice;
-            if (result.outcome === 'accepted') document.getElementById('setInstallBtn').style.display = 'none';
-            _deferredPrompt = null;
+            if (_deferredPrompt) {
+                _deferredPrompt.prompt();
+                const result = await _deferredPrompt.userChoice;
+                _deferredPrompt = null;
+                return;
+            }
+            toast('На Android: Chrome ⋮ → Установить приложение. На iOS: Share → На экран «Домой»');
         }
 
         // Live preview on color picker change
