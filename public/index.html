@@ -31,11 +31,13 @@
             --ac: #7c6ff7;
             --ac2: #f06292;
             --acg: linear-gradient(135deg, #7c6ff7, #f06292);
+            --ac3: #26d4c8;
             --ac-glow: rgba(124, 111, 247, .25);
 
             --t1: #e5e1f0;
             --t2: #9990b8;
             --t3: #5e5578;
+            --t4: #4a4160;
             --tx: #fff;
 
             --bg-m: #141428;
@@ -792,7 +794,9 @@
             max-width: 74%;
             position: relative;
             animation: mIn .12s ease;
+            will-change: transform;
         }
+        .mw.pinned { will-change: auto; }
 
         .mw.me {
             align-self: flex-end;
@@ -1079,7 +1083,7 @@
         }
 
         .mtick.r {
-            color: var(--ac3);
+            color: var(--ac);
         }
 
         /* Message action buttons */
@@ -3678,7 +3682,8 @@
 
         function saveSession() { localStorage.setItem('wavr_s', JSON.stringify({ me, token })); }
 
-        var _pollMsgMs = 800, _pollChatMs = 1200;
+        var _isTouch = 'maxTouchPoints' in navigator && navigator.maxTouchPoints > 0;
+        var _pollMsgMs = _isTouch ? 1500 : 800, _pollChatMs = _isTouch ? 2000 : 1200;
         var _newMsgCount = 0;
 
         function resetPollIntervals() {
@@ -3690,9 +3695,10 @@
 
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) {
-                _pollMsgMs = 4000; _pollChatMs = 6000;
+                _pollMsgMs = 6000; _pollChatMs = 8000;
             } else {
-                _pollMsgMs = 800; _pollChatMs = 1200;
+                _pollMsgMs = _isTouch ? 1500 : 800;
+                _pollChatMs = _isTouch ? 2000 : 1200;
             }
             resetPollIntervals();
         });
@@ -4300,16 +4306,21 @@
 
         function trimMessages() {
             const a = document.getElementById('marea');
-            let maxIter = a.children.length;
-            while (a.children.length > 400 && maxIter-- > 0) {
-                const c = a.firstChild;
-                if (!c) break;
-                if (c.classList?.contains('mw') && c.classList.contains('pinned')) { a.appendChild(c); continue; }
-                const next = c.nextSibling;
-                if (c.classList?.contains('dsep') && next && next.classList?.contains('dsep')) { c.remove(); continue; }
-                c.remove();
-                if (a.children.length <= 300) break;
+            const MAX = 300;
+            if (a.children.length <= MAX) return;
+            const toRemove = a.children.length - MAX;
+            let removed = 0, buf = [];
+            for (let i = 0; i < a.children.length && removed < toRemove; ) {
+                const c = a.children[i];
+                if (c.classList?.contains('mw') && c.classList.contains('pinned')) { i++; continue; }
+                if (c.classList?.contains('dsep')) {
+                    const next = c.nextSibling;
+                    if (next && next.classList?.contains('dsep')) { buf.push(c); i++; continue; }
+                    if (!next && removed > 0) { buf.push(c); i++; continue; }
+                }
+                c.remove(); removed++;
             }
+            buf.forEach(el => el.remove());
         }
 
         async function fetchAllMsgs() {
@@ -4368,8 +4379,7 @@
                     } else if (m.edited && m.type === 'text' && m.text) {
                         const bbl = mw.querySelector('.bbl');
                         if (bbl && !bbl.classList.contains('del')) {
-                            const curText = Array.from(bbl.childNodes)
-                                .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
+                            const curText = bbl.textContent;
                             if (curText.trim() !== (m.text || '').trim()) {
                                 bbl.innerHTML = formatMsg(m.text);
                             }
@@ -4377,6 +4387,21 @@
                                 const ed = document.createElement('span');
                                 ed.className = 'msg-edited'; ed.textContent = 'изм.';
                                 bbl.appendChild(ed);
+                            }
+                        }
+                    }
+                    // Pin status updates
+                    if (m.pinned !== undefined && mw) {
+                        const wasPinned = mw.classList.contains('pinned');
+                        if (m.pinned && !wasPinned) {
+                            mw.classList.add('pinned');
+                            _pinnedMsgId = m.id;
+                            showPinnedBar();
+                        } else if (!m.pinned && wasPinned) {
+                            mw.classList.remove('pinned');
+                            if (_pinnedMsgId === m.id) {
+                                _pinnedMsgId = null;
+                                document.getElementById('pinbar')?.classList.remove('show');
                             }
                         }
                     }
@@ -4396,9 +4421,7 @@
                                 document.querySelectorAll('[data-id^="t"]').forEach(node => {
                                     const bbl = node.querySelector('.bbl');
                                     if (!bbl) return;
-                                    const directText = Array.from(bbl.childNodes)
-                                        .filter(n => n.nodeType === 3).map(n => n.textContent).join('');
-                                    if (directText.trim() === (m.text || '').trim()) node.remove();
+                                    if (bbl.textContent.trim() === (m.text || '').trim()) node.remove();
                                 });
                             } else {
                                 document.querySelectorAll('[data-id^="t"]').forEach(node => {
@@ -5625,7 +5648,12 @@
         // Setup pinbar
         document.getElementById('pinbar')?.addEventListener('click', e => {
             if (e.target.id === 'pinbarClose') {
-                // Just visually hide pinbar (don't unpin from server)
+                const pid = _pinnedMsgId;
+                if (pid) {
+                    fetch(`/api/pin/${pid}`, { method: 'POST', headers: hdrs() }).catch(() => {});
+                    document.querySelectorAll('.mw.pinned').forEach(el => el.classList.remove('pinned'));
+                    _pinnedMsgId = null;
+                }
                 document.getElementById('pinbar').classList.remove('show');
                 return;
             }
@@ -5646,7 +5674,7 @@
             _ctxIsMe = mw.classList.contains('me');
             // Get text for copy/edit
             const bbl = mw.querySelector('.bbl');
-            _ctxText = bbl ? Array.from(bbl.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim() : '';
+            _ctxText = bbl ? bbl.textContent.trim() : '';
             const isDeleted = bbl?.classList.contains('del');
 
             const menu = document.getElementById('ctxMenu');
@@ -5736,7 +5764,7 @@
                         const touch = ev.touches[0];
                         const fakeE = { preventDefault: () => { }, clientX: touch.clientX, clientY: touch.clientY };
                         showCtxMenu(fakeE, mw);
-                        document.querySelectorAll('.mw.show-acts').forEach(m => m.classList.remove('show-acts'));
+                        mw.classList.add('show-acts');
                     }, 500);
                 }, { passive: true });
                 mw.addEventListener('touchend', () => clearTimeout(_tid), { passive: true });
