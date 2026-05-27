@@ -146,6 +146,20 @@
             padding: 20px;
             position: relative;
             z-index: 1;
+            background:
+                radial-gradient(ellipse at 30% 0%, rgba(124, 111, 247, .15) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 100%, rgba(168, 85, 247, .1) 0%, transparent 50%);
+        }
+        #auth::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(2px 2px at 20% 30%, rgba(124, 111, 247, .15), transparent),
+                radial-gradient(2px 2px at 50% 70%, rgba(168, 85, 247, .1), transparent),
+                radial-gradient(2px 2px at 80% 40%, rgba(124, 111, 247, .12), transparent);
+            background-size: 200px 200px;
+            pointer-events: none;
         }
 
         .abox {
@@ -1144,10 +1158,6 @@
         .mw.group:not(.me) .bbl {
             border-bottom-left-radius: 4px !important;
         }
-        .mw.group .macts {
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
 
         /* ── Pinned message highlight ── */
         .mw.pinned {
@@ -1189,70 +1199,8 @@
             color: var(--ac);
         }
 
-        /* Message action buttons */
-        .macts {
-            display: flex;
-            gap: 2px;
-            padding: 0;
-            background: transparent;
-            border: none;
-            border-radius: 0;
-            position: relative;
-            bottom: auto;
-            right: auto;
-            box-shadow: none;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .15s;
-            z-index: 5;
-            align-self: flex-end;
-            margin-top: 2px;
-        }
+        /* Message action buttons — shown via context menu (right-click / long-press) */
 
-        .mw:hover .macts,
-        .mw.show-acts .macts {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .mab {
-            width: 22px;
-            height: 22px;
-            min-width: 22px;
-            border-radius: 6px;
-            border: none;
-            background: transparent;
-            color: var(--t3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            transition: all .12s;
-            touch-action: manipulation;
-            cursor: pointer;
-        }
-
-        .mab:hover {
-            background: rgba(124,111,247,.1);
-            color: var(--ac);
-        }
-        .mab.dng:hover {
-            background: rgba(240,80,80,.1);
-            color: var(--rd);
-        }
-            color: var(--tx);
-            border-color: var(--br2);
-        }
-
-        .mab:active {
-            opacity: .7;
-        }
-
-        .mab.dng:hover {
-            background: rgba(240, 80, 80, .12);
-            color: var(--rd);
-            border-color: rgba(240, 80, 80, .22);
-        }
 
         /* Media */
         .msg-img {
@@ -3569,6 +3517,7 @@
     <!-- Context menu -->
     <div id="ctxMenu">
         <div class="ctx-item" id="ctx-reply"><span class="ctx-ico">↩️</span> Ответить</div>
+        <div class="ctx-item" id="ctx-react"><span class="ctx-ico">😊</span> Реакция</div>
         <div class="ctx-item" id="ctx-copy"><span class="ctx-ico">📋</span> Копировать</div>
         <div class="ctx-item" id="ctx-edit"><span class="ctx-ico">✏️</span> Редактировать</div>
         <div class="ctx-item" id="ctx-pin"><span class="ctx-ico">📌</span> Закрепить</div>
@@ -4520,7 +4469,6 @@
                         if (bbl && !bbl.classList.contains('del')) {
                             bbl.className = 'bbl del'; bbl.innerHTML = '';
                             bbl.textContent = 'Сообщение удалено';
-                            mw.querySelectorAll('.mab').forEach(b => b.remove());
                             mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
                             mw.querySelector('.reply-quote')?.remove();
                         }
@@ -4725,50 +4673,11 @@
             mw.dataset.id = m.id;
             mw.dataset.from = m.from || '';
             mw.dataset.ts = m.ts;
+            mw.dataset.displayname = m.displayname || m.from || '';
 
             // Mini avatar
             const mav = document.createElement('div');
             mav.className = `mav av-${colorIdx}`;
-
-            // Action buttons
-            const macts = document.createElement('div');
-            macts.className = 'macts';
-
-            if (!m.deleted) {
-                // React button
-                const rb = document.createElement('button');
-                rb.className = 'mab'; rb.title = 'Реакция';
-                rb.dataset.react = m.id; rb.dataset.pickerBtn = '1';
-                rb.textContent = '😊';
-                macts.appendChild(rb);
-
-                // REPLY button — all data stored in data-attributes, NOT pulled from DOM
-                const rrb = document.createElement('button');
-                rrb.className = 'mab'; rrb.title = 'Ответить';
-                rrb.dataset.replyId = m.id;
-                // displayname for reply header: me or other user
-                const fromName = isMe
-                    ? (me.displayname || me.username)
-                    : (m.displayname || _userDnCache[m.from] || m.from);
-                rrb.dataset.replyFrom = fromName;
-                // preview text for reply bar — based on type, NOT pulling from .bbl
-                let replyPreview;
-                if (m.type === 'image') replyPreview = '📷 Фото';
-                else if (m.type === 'video') replyPreview = '🎬 Видео';
-                else if (m.type === 'file') replyPreview = '📎 ' + (m.file_name || 'Файл');
-                else replyPreview = (m.text || '').slice(0, 80);
-                rrb.dataset.replyText = replyPreview;
-                rrb.innerHTML = '<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>';
-                macts.appendChild(rrb);
-            }
-
-            if (isMe && !m.deleted) {
-                const db = document.createElement('button');
-                db.className = 'mab dng'; db.title = 'Удалить';
-                db.dataset.del = m.id;
-                db.innerHTML = '<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>';
-                macts.appendChild(db);
-            }
 
             // Body wrapper (reply quote + bubble + footer + reactions)
             const bodyWrap = document.createElement('div');
@@ -4967,19 +4876,12 @@
                 mw.dataset.lp = '1';
                 mw.addEventListener('touchstart', () => {
                     if (!chatWith) return;
-                    _lpTid = setTimeout(() => {
-                        document.querySelectorAll('.mw.show-acts').forEach(m => m.classList.remove('show-acts'));
-                        mw.classList.add('show-acts');
-                    }, 500);
+                    _lpTid = setTimeout(() => {}, 500);
                 }, { passive: true });
                 mw.addEventListener('touchend', () => clearTimeout(_lpTid), { passive: true });
                 mw.addEventListener('touchmove', () => clearTimeout(_lpTid), { passive: true });
             });
         }
-        document.addEventListener('click', e => {
-            if (!e.target.closest('.mw'))
-                document.querySelectorAll('.mw.show-acts').forEach(m => m.classList.remove('show-acts'));
-        });
 
         /* ════════════════════════════════════════
            EMOJI PICKER
@@ -5418,7 +5320,6 @@
                                 mw.remove();
                             } else {
                                 bbl.className = 'bbl del'; bbl.innerHTML = ''; bbl.textContent = 'Сообщение удалено';
-                                mw.querySelectorAll('.mab').forEach(b => b.remove());
                                 mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
                                 mw.querySelector('.reply-quote')?.remove();
                             }
@@ -5889,11 +5790,24 @@
             if (!_ctxMsgId) return;
             const mw = document.querySelector(`[data-id="${_ctxMsgId}"]`);
             if (!mw) return;
-            const replyBtn = mw.querySelector('[data-reply-id]');
-            if (replyBtn) {
-                startReply(parseInt(replyBtn.dataset.replyId), replyBtn.dataset.replyFrom, replyBtn.dataset.replyText);
+            const fromName = mw.dataset.from === me.username
+                ? (me.displayname || me.username)
+                : (mw.dataset.displayname || mw.dataset.from || '?');
+            const bbl = mw.querySelector('.bbl');
+            let preview = bbl ? bbl.textContent.trim().slice(0, 80) : '';
+            if (!preview) {
+                if (mw.querySelector('img')) preview = '📷 Фото';
+                else if (mw.querySelector('video')) preview = '🎬 Видео';
             }
+            startReply(parseInt(_ctxMsgId), fromName, preview);
             closeCtxMenu();
+        });
+        document.getElementById('ctx-react').addEventListener('click', () => {
+            if (!_ctxMsgId) return;
+            const mw = document.querySelector(`[data-id="${_ctxMsgId}"]`);
+            if (!mw) { closeCtxMenu(); return; }
+            closeCtxMenu();
+            setTimeout(() => showPicker(mw, _ctxMsgId), 50);
         });
         document.getElementById('ctx-copy').addEventListener('click', () => {
             if (_ctxText) { navigator.clipboard?.writeText(_ctxText).then(() => toast('Скопировано')).catch(() => { }); }
@@ -5939,7 +5853,6 @@
                         const touch = ev.touches[0];
                         const fakeE = { preventDefault: () => { }, clientX: touch.clientX, clientY: touch.clientY };
                         showCtxMenu(fakeE, mw);
-                        mw.classList.add('show-acts');
                     }, 500);
                 }, { passive: true });
                 mw.addEventListener('touchend', () => clearTimeout(_tid), { passive: true });
@@ -6111,7 +6024,6 @@
                             else {
                                 const bbl = mw.querySelector('.bbl');
                                 if (bbl) { bbl.className = 'bbl del'; bbl.innerHTML = ''; bbl.textContent = 'Сообщение удалено'; }
-                                mw.querySelectorAll('.mab').forEach(b => b.remove());
                                 mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
                                 mw.querySelector('.reply-quote')?.remove();
                             }
