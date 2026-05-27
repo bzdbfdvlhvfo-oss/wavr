@@ -1161,6 +1161,22 @@
             border: none !important;
             box-shadow: none !important;
         }
+        .bbl.sticker-bbl {
+            background: transparent !important;
+            padding: 2px;
+            box-shadow: none !important;
+            border: none !important;
+        }
+        .sticker-emoji {
+            font-size: 64px;
+            line-height: 1;
+            text-align: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        @media (max-width: 640px) {
+            .sticker-emoji { font-size: 52px; }
+        }
 
         .bbl.del {
             opacity: .35;
@@ -1409,6 +1425,73 @@
             background: rgba(124,111,247,.08);
         }
         .r-add:active { transform: scale(.88); }
+
+        /* ══════════════════════════════════════════
+        STICKER PICKER
+        ══════════════════════════════════════════ */
+        #spick {
+            position: fixed;
+            background: rgba(10, 10, 28, .95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--br);
+            border-radius: 18px;
+            padding: 10px;
+            display: none;
+            z-index: 700;
+            box-shadow: var(--shadow);
+            width: 290px;
+            max-height: 340px;
+            overflow: hidden;
+        }
+        #spick.show { display: block; }
+        .sp-tabs {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--br);
+        }
+        .sp-tab {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--t2);
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all .12s;
+            white-space: nowrap;
+        }
+        .sp-tab:hover { color: var(--tx); background: var(--bg3); }
+        .sp-tab.on { background: var(--acg); color: #fff; border-color: transparent; }
+        .sp-grid-wrap {
+            overflow-y: auto;
+            max-height: 240px;
+        }
+        .sp-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .sp-sticker {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            border: none;
+            background: var(--bg3);
+            font-size: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .12s;
+            touch-action: manipulation;
+        }
+        .sp-sticker:hover { background: var(--bg4); transform: scale(1.08); }
+        .sp-sticker:active { transform: scale(.9); }
 
         /* Reply quote */
         .reply-quote {
@@ -3476,11 +3559,29 @@
             }
 
             .marea {
-                padding: 10px 8px;
+                padding: 10px 6px;
             }
 
             .mw {
-                max-width: 90%;
+                max-width: 92%;
+            }
+
+            .mw .reacts {
+                margin-left: -8px;
+                margin-right: -8px;
+            }
+
+            .mw.me .mfoot {
+                padding-right: 4px;
+            }
+
+            .cmain {
+                z-index: 50;
+            }
+
+            .topbar {
+                padding: 10px 10px;
+                z-index: 60;
             }
 
             .modal {
@@ -3522,6 +3623,19 @@
             .mover { padding: 8px; }
             .bottab { display: flex; }
             .cmain { padding-bottom: 54px; }
+            .mw .mav {
+                width: 22px;
+                height: 22px;
+                min-width: 22px;
+                font-size: 8px;
+            }
+            .bbl {
+                padding: 7px 11px;
+                font-size: calc(var(--msg-fs, 15px) - 1px);
+            }
+            .mw.group {
+                margin-top: -5px;
+            }
         }
         @media (min-width: 641px) {
             .bottab { display: none !important; }
@@ -3865,6 +3979,11 @@
                         <input type="file" id="mfile2" style="display:none"
                             accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt,.mp3,.wav" onchange="onFilePick(event)" />
                     </label>
+                    <button class="mbtn" id="stickerBtn" onclick="toggleStickerPicker()" title="Стикеры">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                    </button>
                     <textarea class="minp" id="minp" rows="1" placeholder="Написать…" onkeydown="onKey(event)"
                         oninput="autoH(this)"></textarea>
                     <button class="sbtn" onclick="sendMsg()" title="Отправить">
@@ -4188,6 +4307,14 @@
         <input class="epinp" id="epinp" placeholder="Свой эмодзи…" maxlength="8" />
     </div>
 
+    <!-- Sticker picker -->
+    <div id="spick">
+        <div class="sp-tabs" id="spTabs"></div>
+        <div class="sp-grid-wrap" id="spGridWrap">
+            <div class="sp-grid" id="spGrid"></div>
+        </div>
+    </div>
+
     <!-- Upload progress -->
     <div class="upbar" id="upbar">
         <span id="upname" style="max-width:110px;overflow:hidden;text-overflow:ellipsis"></span>
@@ -4208,6 +4335,18 @@
         const _userDnCache = {}; // username → displayname cache
 
         const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉', '😍', '💀', '🤝', '✨', '😤', '🥹', '💯', '🙏', '😎', '🤔', '🥶', '🤯', '🫡', '🫠', '😈', '💅', '🎯', '🚀', '💜', '⭐', '🕊️', '🍿', '👀'];
+        const STICKER_PACKS = [
+            { id: 'classic', name: 'Классика', stickers: ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉', '😍', '💀', '🤝', '✨', '😤', '🥹', '💯', '🙏', '😎', '🤔', '🥶', '🤯'] },
+            { id: 'cats', name: 'Кошки', stickers: ['🐱', '😺', '😸', '😻', '😽', '🙀', '😿', '😾', '🐈', '🐈‍⬛'] },
+            { id: 'dogs', name: 'Собаки', stickers: ['🐶', '🐕', '🦮', '🐩', '🐾', '🦴', '🐕‍🦺', '🦊', '🐺'] },
+            { id: 'food', name: 'Еда', stickers: ['🍕', '🍔', '🌮', '🍣', '🍩', '🍪', '🍰', '🧁', '🍦', '🍿', '🥤', '☕'] },
+            { id: 'nature', name: 'Природа', stickers: ['🌺', '🌸', '🌻', '🌹', '🌷', '🌿', '🍀', '🌴', '🌊', '⛰️', '🌈', '⭐'] },
+            { id: 'love', name: 'Любовь', stickers: ['💖', '💗', '💝', '💕', '💌', '💋', '🥰', '😘', '💑', '👩‍❤️‍👨', '💞', '❤️‍🔥'] },
+            { id: 'party', name: 'Пати', stickers: ['🎉', '🎊', '🎈', '🎀', '🎁', '🥳', '🎇', '✨', '💃', '🕺', '🎵', '🎶'] },
+            { id: 'sport', name: 'Спорт', stickers: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🎯', '🚴', '🏋️', '🤸', '🧘'] },
+            { id: 'animals', name: 'Животные', stickers: ['🐻', '🐼', '🐨', '🐸', '🐒', '🐔', '🐧', '🐦', '🦆', '🦉', '🦇', '🐝'] },
+            { id: 'space', name: 'Космос', stickers: ['🚀', '🛸', '🛰️', '👽', '🤖', '🌍', '🌙', '☀️', '⭐', '🌌', '🪐', '👾'] },
+        ];
         const AVC = [0, 1, 2, 3, 4, 5];
         const OWNER = 'timur';
 
@@ -4263,6 +4402,13 @@
           return S.monitor;
         }
         const hdrs = () => ({ 'Content-Type': 'application/json', 'x-token': token || '' });
+        const hdrsNoCT = () => ({ 'x-token': token || '' });
+
+        function urlBase64ToUint8Array(b64) {
+            const pad = b64.replace(/=+$/, '');
+            const raw = atob(pad.replace(/-/g, '+').replace(/_/g, '/'));
+            return new Uint8Array([...raw].map(c => c.charCodeAt(0)));
+        }
 
         /** Set avatar element: color class + content */
         function setAv(el, av, colorIdx, displayName) {
@@ -4434,7 +4580,7 @@
         function saveSession() { localStorage.setItem('wavr_s', JSON.stringify({ me, token })); }
 
         var _isTouch = 'maxTouchPoints' in navigator && navigator.maxTouchPoints > 0;
-        var _pollMsgMs = _isTouch ? 1500 : 800, _pollChatMs = _isTouch ? 2000 : 1200;
+        var _pollMsgMs = _isTouch ? 3000 : 1500, _pollChatMs = _isTouch ? 5000 : 3000;
         var _newMsgCount = 0;
 
         function resetPollIntervals() {
@@ -4446,10 +4592,10 @@
 
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) {
-                _pollMsgMs = 6000; _pollChatMs = 8000;
+                _pollMsgMs = 15000; _pollChatMs = 20000;
             } else {
-                _pollMsgMs = _isTouch ? 1500 : 800;
-                _pollChatMs = _isTouch ? 2000 : 1200;
+                _pollMsgMs = _isTouch ? 3000 : 1500;
+                _pollChatMs = _isTouch ? 5000 : 3000;
             }
             resetPollIntervals();
         });
@@ -4890,44 +5036,94 @@
 
         function renderChats(list) {
             const el = document.getElementById('clist');
-            el.innerHTML = '';
+            const existing = new Map();
+            el.querySelectorAll('.ci').forEach(ci => {
+                const cu = ci.dataset.cu;
+                if (cu) existing.set(cu, ci);
+            });
             if (!list.length) {
-                const div = document.createElement('div');
-                div.className = 'empty-list';
-                div.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t3);font-size:13px"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="display:block;margin:0 auto 8px;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь<br><span style="font-size:12px">Используйте поиск выше</span></div>';
-                el.appendChild(div); return;
+                if (existing.size === 0) {
+                    const div = document.createElement('div');
+                    div.className = 'empty-list';
+                    div.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t3);font-size:13px"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="display:block;margin:0 auto 8px;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь<br><span style="font-size:12px">Используйте поиск выше</span></div>';
+                    el.appendChild(div);
+                }
+                return;
             }
+            const seen = new Set();
+            let first = true;
             list.forEach((c, idx) => {
                 if (c.otherAvatar) _avCache[c.otherUsername] = c.otherAvatar;
                 _userDnCache[c.otherUsername] = c.otherDisplayname;
                 const isOnline = c.lastSeen && (Date.now() - c.lastSeen < 300000);
-                const ci = document.createElement('div');
-                ci.className = 'ci' + (chatWith?.username === c.otherUsername ? ' act' : '');
-                ci.dataset.cu = c.otherUsername;
-                ci.dataset.cdn = c.otherDisplayname;
-                ci.style.setProperty('--i', idx);
-                const avEl = document.createElement('div');
-                avEl.className = 'av' + (isOnline ? ' av-on' : '');
-                avEl.style.cssText = 'width:38px;height:38px;min-width:38px;font-size:13px;flex-shrink:0;';
-                setAv(avEl, c.otherAvatar || null, avc(c.otherUsername), c.otherDisplayname);
-                const cinf = document.createElement('div'); cinf.className = 'cinf';
-                const cname = document.createElement('div'); cname.className = 'cname'; cname.textContent = c.otherDisplayname;
-                const cprev = document.createElement('div'); cprev.className = 'cprev'; cprev.textContent = c.lastMessage || '';
-                cinf.appendChild(cname); cinf.appendChild(cprev);
-                const cmeta = document.createElement('div'); cmeta.className = 'cmeta';
-                const ctime = document.createElement('div'); ctime.className = 'ctime'; ctime.textContent = c.lastTs ? ft(c.lastTs) : '';
-                cmeta.appendChild(ctime);
-                if (c.unread) {
-                    const badge = document.createElement('div'); badge.className = 'badge';
-                    badge.textContent = c.unread > 99 ? '99+' : c.unread;
-                    cmeta.appendChild(badge);
+                const isActive = chatWith?.username === c.otherUsername;
+                const key = c.otherUsername;
+                seen.add(key);
+                let ci = existing.get(key);
+                if (ci) {
+                    existing.delete(key);
+                    // update in-place
+                    const wasActive = ci.classList.contains('act');
+                    if (isActive !== wasActive) ci.classList.toggle('act', isActive);
+                    const avEl = ci.querySelector('.av');
+                    if (avEl) {
+                        const hasOn = avEl.classList.contains('av-on');
+                        if (isOnline !== hasOn) avEl.classList.toggle('av-on', isOnline);
+                        setAv(avEl, c.otherAvatar || null, avc(key), c.otherDisplayname);
+                    }
+                    const cname = ci.querySelector('.cname');
+                    if (cname) cname.textContent = c.otherDisplayname;
+                    const cprev = ci.querySelector('.cprev');
+                    if (cprev) cprev.textContent = c.lastMessage || '';
+                    const ctime = ci.querySelector('.ctime');
+                    if (ctime) ctime.textContent = c.lastTs ? ft(c.lastTs) : '';
+                    const badge = ci.querySelector('.badge');
+                    if (c.unread) {
+                        if (badge) { badge.textContent = c.unread > 99 ? '99+' : c.unread; }
+                        else {
+                            const b = document.createElement('div'); b.className = 'badge';
+                            b.textContent = c.unread > 99 ? '99+' : c.unread;
+                            const cm = ci.querySelector('.cmeta');
+                            if (cm) cm.appendChild(b);
+                        }
+                    } else if (badge) { badge.remove(); }
+                    // move to correct position
+                    el.appendChild(ci);
+                } else {
+                    ci = document.createElement('div');
+                    ci.className = 'ci' + (isActive ? ' act' : '');
+                    ci.dataset.cu = key;
+                    ci.dataset.cdn = c.otherDisplayname;
+                    ci.style.setProperty('--i', idx);
+                    const avEl = document.createElement('div');
+                    avEl.className = 'av' + (isOnline ? ' av-on' : '');
+                    avEl.style.cssText = 'width:38px;height:38px;min-width:38px;font-size:13px;flex-shrink:0;';
+                    setAv(avEl, c.otherAvatar || null, avc(key), c.otherDisplayname);
+                    const cinf = document.createElement('div'); cinf.className = 'cinf';
+                    const cname = document.createElement('div'); cname.className = 'cname'; cname.textContent = c.otherDisplayname;
+                    const cprev = document.createElement('div'); cprev.className = 'cprev'; cprev.textContent = c.lastMessage || '';
+                    cinf.appendChild(cname); cinf.appendChild(cprev);
+                    const cmeta = document.createElement('div'); cmeta.className = 'cmeta';
+                    const ctime = document.createElement('div'); ctime.className = 'ctime'; ctime.textContent = c.lastTs ? ft(c.lastTs) : '';
+                    cmeta.appendChild(ctime);
+                    if (c.unread) {
+                        const badge = document.createElement('div'); badge.className = 'badge';
+                        badge.textContent = c.unread > 99 ? '99+' : c.unread;
+                        cmeta.appendChild(badge);
+                    }
+                    const cdel = document.createElement('button'); cdel.className = 'cdel';
+                    cdel.dataset.dcu = key; cdel.title = 'Удалить чат';
+                    cdel.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+                    ci.appendChild(avEl); ci.appendChild(cinf); ci.appendChild(cmeta); ci.appendChild(cdel);
+                    el.appendChild(ci);
                 }
-                const cdel = document.createElement('button'); cdel.className = 'cdel';
-                cdel.dataset.dcu = c.otherUsername; cdel.title = 'Удалить чат';
-                cdel.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>';
-                ci.appendChild(avEl); ci.appendChild(cinf); ci.appendChild(cmeta); ci.appendChild(cdel);
-                el.appendChild(ci);
             });
+            // Remove stale items
+            for (const [k, v] of existing) v.remove();
+            // Clean up skeletons
+            el.querySelectorAll('.skel-ci').forEach(s => s.remove());
+            const empty = el.querySelector('.empty-list');
+            if (empty && list.length) empty.remove();
         }
 
         document.getElementById('clist').addEventListener('click', e => {
@@ -5409,6 +5605,12 @@
                 finf.appendChild(fn); finf.appendChild(fz);
                 mf.appendChild(fi); mf.appendChild(finf); bbl.appendChild(mf); bodyInner.appendChild(bbl);
 
+            } else if (m.type === 'sticker') {
+                const bbl = document.createElement('div'); bbl.className = 'bbl sticker-bbl';
+                const se = document.createElement('div'); se.className = 'sticker-emoji';
+                se.textContent = m.text || '😊';
+                bbl.appendChild(se); bodyInner.appendChild(bbl);
+
             } else {
                 // TEXT — ONLY formatted text inside .bbl, reply-quote is OUTSIDE
                 const bbl = document.createElement('div'); bbl.className = 'bbl';
@@ -5545,20 +5747,8 @@
         });
 
         /* ════════════════════════════════════════
-           LONG PRESS (mobile)
+            LONG PRESS (mobile) — see setupLongPress below
         ════════════════════════════════════════ */
-        let _lpTid = null;
-        function setupLongPress() {
-            document.querySelectorAll('.mw:not([data-lp])').forEach(mw => {
-                mw.dataset.lp = '1';
-                mw.addEventListener('touchstart', () => {
-                    if (!chatWith) return;
-                    _lpTid = setTimeout(() => {}, 500);
-                }, { passive: true });
-                mw.addEventListener('touchend', () => clearTimeout(_lpTid), { passive: true });
-                mw.addEventListener('touchmove', () => clearTimeout(_lpTid), { passive: true });
-            });
-        }
 
         /* ════════════════════════════════════════
            EMOJI PICKER
@@ -5586,6 +5776,85 @@
             pick.style.top = top + 'px'; pick.style.left = left + 'px'; pick.style.display = 'block';
         }
         function closePicker() { document.getElementById('epick').style.display = 'none'; _pickerMsgId = null; }
+
+        /* ════════════════════════════════════════
+           STICKER PICKER
+        ════════════════════════════════════════ */
+        let _spickActive = false;
+
+        function initStickerPicker() {
+            const tabs = document.getElementById('spTabs');
+            tabs.innerHTML = '';
+            STICKER_PACKS.forEach((p, i) => {
+                const t = document.createElement('button');
+                t.className = 'sp-tab' + (i === 0 ? ' on' : '');
+                t.textContent = p.name;
+                t.dataset.idx = i;
+                t.addEventListener('click', () => showStickerPack(i));
+                tabs.appendChild(t);
+            });
+            showStickerPack(0);
+        }
+
+        function showStickerPack(idx) {
+            document.querySelectorAll('.sp-tab').forEach(t => t.classList.remove('on'));
+            document.querySelectorAll('.sp-tab')[idx]?.classList.add('on');
+            const grid = document.getElementById('spGrid');
+            grid.innerHTML = '';
+            const pack = STICKER_PACKS[idx];
+            pack.stickers.forEach(st => {
+                const b = document.createElement('button');
+                b.className = 'sp-sticker';
+                b.textContent = st;
+                b.addEventListener('click', () => { sendSticker(st); toggleStickerPicker(); });
+                grid.appendChild(b);
+            });
+        }
+
+        function toggleStickerPicker() {
+            const sp = document.getElementById('spick');
+            _spickActive = sp.style.display !== 'block';
+            if (!_spickActive) { sp.style.display = 'none'; return; }
+            if (!sp.querySelector('.sp-tab')) initStickerPicker();
+            sp.style.visibility = 'hidden'; sp.style.display = 'block';
+            const ph = sp.offsetHeight, pw = sp.offsetWidth;
+            sp.style.display = 'none'; sp.style.visibility = '';
+            const btn = document.getElementById('stickerBtn');
+            const rect = btn.getBoundingClientRect();
+            let top = rect.top - ph - 8; if (top < 8) top = rect.bottom + 8;
+            let left = rect.left; if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8; if (left < 8) left = 8;
+            sp.style.top = top + 'px'; sp.style.left = left + 'px'; sp.style.display = 'block';
+        }
+
+        async function sendSticker(stickerEmoji) {
+            if (!chatWith || !stickerEmoji) return;
+            const minp = document.getElementById('minp');
+            if (minp) minp.value = '';
+            try {
+                const body = { to: chatWith.username, text: stickerEmoji, type: 'sticker' };
+                const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                if (!r.ok) throw Error('send fail');
+                const j = await r.json();
+                if (!j.ok) throw Error(j.error || 'send failed');
+                seenIds.add(j.id);
+                // Show optimistic sticker
+                const fake = {
+                    id: 't' + Date.now(), from: me.username, displayname: me.displayname,
+                    text: stickerEmoji, type: 'sticker', ts: Date.now(),
+                    deleted: false, read_at: 0, reactions: {}, _fake: true,
+                    reply_to: null, reply_preview: null
+                };
+                appendMsgs([fake]);
+            } catch(e) {
+                toast('Ошибка при отправке стикера', 'err');
+            }
+        }
+
+        document.addEventListener('mousedown', e => {
+            if (!e.target.closest('#spick') && !e.target.closest('#stickerBtn')) {
+                document.getElementById('spick').style.display = 'none';
+            }
+        });
 
         document.getElementById('epinp').addEventListener('keydown', e => {
             if (e.key === 'Enter') {
@@ -5659,6 +5928,7 @@
         ════════════════════════════════════════ */
         async function sendMsg() {
             if (!chatWith) return;
+            requestNotifPermission();
             const inp = document.getElementById('minp');
             const text = inp.value.trim(); if (!text) return;
             inp.value = ''; inp.style.height = '';
@@ -6404,6 +6674,14 @@
             } catch (e) { }
         }
 
+        // Clean up seenIds memory: every 5 minutes, keep last 500
+        setInterval(function () {
+            if (seenIds.size > 1000) {
+                const arr = [...seenIds];
+                seenIds = new Set(arr.slice(-500));
+            }
+        }, 300000);
+
         // Media cache cleanup: every 2 minutes, keep last 150 entries + any visible in DOM
         setInterval(function () {
             if (mediaStore.size < 200) return;
@@ -6987,7 +7265,55 @@
         ════════════════════════════════════════ */
         // Register service worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(() => {});
+            navigator.serviceWorker.register('/sw.js').then(reg => {
+                setupPushNotifications(reg);
+            }).catch(() => {});
+        }
+
+        async function setupPushNotifications(reg) {
+            if (!reg || !reg.pushManager) return;
+            const notifPerm = Notification.permission;
+            if (notifPerm === 'denied') return;
+            if (notifPerm === 'default') {
+                // Will prompt on first interaction that can produce notifications
+                return;
+            }
+            try {
+                const vk = await fetch('/api/push/vapid-key').then(r => r.json());
+                if (!vk.publicKey) return;
+                const sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vk.publicKey)
+                });
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: hdrs(),
+                    body: JSON.stringify(sub.toJSON())
+                });
+            } catch (e) {
+                // silently fail — push is optional
+            }
+        }
+
+        // Prompt for notification permission on first message send
+        function requestNotifPermission() {
+            if (!('Notification' in window) || Notification.permission !== 'default') return;
+            Notification.requestPermission().then(perm => {
+                if (perm === 'granted' && 'serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(reg => setupPushNotifications(reg));
+                }
+            });
+        }
+
+        // Listen for SW messages (navigate from notification click)
+        if (navigator.serviceWorker) {
+            navigator.serviceWorker.addEventListener('message', e => {
+                if (e.data && e.data.type === 'navigate' && e.data.chatKey) {
+                    const parts = e.data.chatKey.split(':');
+                    const other = parts.find(p => p !== me?.username);
+                    if (other) openChat(other);
+                }
+            });
         }
 
         try {

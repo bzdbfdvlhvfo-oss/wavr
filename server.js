@@ -123,6 +123,7 @@ async function initDB() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE`,
     `CREATE TABLE IF NOT EXISTS chat_hidden (username TEXT NOT NULL, chat_key TEXT NOT NULL, hidden_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000), PRIMARY KEY (username, chat_key))`,
     `CREATE TABLE IF NOT EXISTS blocked (username TEXT NOT NULL, blocked TEXT NOT NULL, ts BIGINT, PRIMARY KEY (username, blocked))`,
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (username TEXT NOT NULL, endpoint TEXT, auth TEXT, p256dh TEXT, PRIMARY KEY (username))`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch (e) { } }
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { }
@@ -220,6 +221,110 @@ function wsPushToChat(chatKey, sender, data) {
   }
   // Also send to sender for multi-device sync
   wsBroadcast(sender, data);
+  // Send push notifications to offline participants (not connected via WS)
+  for (const p of parts) {
+    if (p !== sender && (!wsClients.has(p) || ![...(wsClients.get(p) || [])].some(s => s.readyState === 1))) {
+      const pushPayload = {
+        type: 'new_message',
+        chatKey,
+        from: data.from,
+        displayname: data.displayname || data.from,
+        text: data.msgType === 'sticker' ? '🎨 Стикер' : (data.text || ''),
+        msgType: data.msgType,
+        id: data.id,
+        ts: data.ts
+      };
+      sendPushNotification(p, pushPayload);
+    }
+  }
+}
+
+// ── Stickers ──
+const STICKER_PACKS = [
+  { id: 'classic', name: 'Классика', stickers: ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉', '😍', '💀', '🤝', '✨', '😤', '🥹', '💯', '🙏', '😎', '🤔', '🥶', '🤯'] },
+  { id: 'cats', name: 'Кошки', stickers: ['🐱', '😺', '😸', '😻', '😽', '🙀', '😿', '😾', '🐈', '🐈‍⬛'] },
+  { id: 'dogs', name: 'Собаки', stickers: ['🐶', '🐕', '🦮', '🐩', '🐾', '🦴', '🐕‍🦺', '🦊', '🐺'] },
+  { id: 'food', name: 'Еда', stickers: ['🍕', '🍔', '🌮', '🍣', '🍩', '🍪', '🍰', '🧁', '🍦', '🍿', '🥤', '☕'] },
+  { id: 'nature', name: 'Природа', stickers: ['🌺', '🌸', '🌻', '🌹', '🌷', '🌿', '🍀', '🌴', '🌊', '⛰️', '🌈', '⭐'] },
+  { id: 'love', name: 'Любовь', stickers: ['💖', '💗', '💝', '💕', '💌', '💋', '🥰', '😘', '💑', '👩‍❤️‍👨', '💞', '❤️‍🔥'] },
+  { id: 'party', name: 'Пати', stickers: ['🎉', '🎊', '🎈', '🎀', '🎁', '🥳', '🎇', '✨', '💃', '🕺', '🎵', '🎶'] },
+  { id: 'sport', name: 'Спорт', stickers: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🎯', '🚴', '🏋️', '🤸', '🧘'] },
+  { id: 'animals', name: 'Животные', stickers: ['🐻', '🐼', '🐨', '🐸', '🐒', '🐔', '🐧', '🐦', '🦆', '🦉', '🦇', '🐝'] },
+  { id: 'space', name: 'Космос', stickers: ['🚀', '🛸', '🛰️', '👽', '🤖', '🌍', '🌙', '☀️', '⭐', '🌌', '🪐', '👾'] },
+];
+
+app.get('/api/stickers', (req, res) => {
+  ok(res, { packs: STICKER_PACKS });
+});
+
+// ── Push notifications ──
+const webpush = require('web-push');
+const VAPID_PUBLIC_KEY = 'BL-zheSXvNqX0nAiuYTcyBENVJ3qEkUi8G3Qq02pmPfvpSwV6j6WKgmBn6sXvprdGCU6oHt_-zSbK_225J6XIfg';
+const VAPID_PRIVATE_KEY = 'foJ9jSjo2mQCg37E8Jq9Mhkddn6PXjK-M9KsvhJlbs8';
+webpush.setVapidDetails('mailto:support@wavr.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+app.post('/api/push/subscribe', auth, async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys || !keys.auth || !keys.p256dh) return err(res, 'Invalid subscription');
+    await pool.query(`INSERT INTO push_subscriptions (username, endpoint, auth, p256dh) VALUES ($1,$2,$3,$4) ON CONFLICT (username) DO UPDATE SET endpoint=$2, auth=$3, p256dh=$4`, [req.username, endpoint, keys.auth, keys.p256dh]);
+    ok(res, { ok: true });
+  } catch (e) { err(res, 'Push sub fail'); }
+});
+
+app.post('/api/push/unsubscribe', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [req.username]);
+    ok(res, { ok: true });
+  } catch (e) { err(res, 'Push unsub fail'); }
+});
+
+// ── Search messages ──
+app.get('/api/search/messages', auth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q || q.length < 2) return ok(res, { messages: [] });
+    const username = req.username;
+    // Find all chat keys involving this user
+    const chatsR = await pool.query(`SELECT DISTINCT chat_key FROM messages WHERE chat_key LIKE $1`, [`%${username}%`]);
+    const chatKeys = chatsR.rows.map(r => r.chat_key).filter(k => k.includes(username));
+    if (!chatKeys.length) return ok(res, { messages: [] });
+    // Search messages in those chats
+    const like = '%' + q.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
+    const msgR = await pool.query(
+      `SELECT id, chat_key, sender, displayname, text, msgtype, ts, file_name, file_size, reply_to, reply_preview, reactions, edited, deleted, read_at FROM messages WHERE chat_key = ANY($1) AND (LOWER(text) LIKE LOWER($2) OR LOWER(file_name) LIKE LOWER($2)) AND deleted = false ORDER BY ts DESC LIMIT 50`,
+      [chatKeys, like]
+    );
+    const messages = msgR.rows.map(r => ({
+      id: r.id, chatKey: r.chat_key, from: r.sender, displayname: r.displayname,
+      text: r.text, msgType: r.msgtype, ts: parseInt(r.ts),
+      fileName: r.file_name, fileSize: r.file_size,
+      replyTo: r.reply_to, replyPreview: r.reply_preview,
+      reactions: parseReactions(r.reactions), edited: r.edited,
+      deleted: r.deleted, readAt: r.read_at ? parseInt(r.read_at) : 0
+    }));
+    ok(res, { messages });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+app.get('/api/push/vapid-key', (req, res) => {
+  ok(res, { publicKey: VAPID_PUBLIC_KEY });
+});
+
+async function sendPushNotification(username, payload) {
+  try {
+    const r = await pool.query(`SELECT endpoint, auth, p256dh FROM push_subscriptions WHERE username=$1`, [username]);
+    if (!r.rows.length) return;
+    const { endpoint, auth, p256dh } = r.rows[0];
+    if (!endpoint) return;
+    const sub = { endpoint, keys: { auth, p256dh } };
+    await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 86400 });
+  } catch (e) {
+    // if subscription is expired, clean it
+    if (e.statusCode === 410) {
+      try { await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [username]); } catch (e2) {}
+    }
+  }
 }
 
 // ── Poll tracking ──
@@ -348,7 +453,7 @@ app.get('/api/search', auth, async (req, res) => {
 app.post('/api/send', auth, async (req, res) => {
   try {
     const { to, text, type, fileName, fileSize, replyTo } = req.body;
-    const allowedTypes = ['text', 'image', 'video', 'file'];
+    const allowedTypes = ['text', 'image', 'video', 'file', 'sticker'];
     const msgType = allowedTypes.includes(type) ? type : 'text';
     if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
     if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
@@ -387,7 +492,7 @@ app.post('/api/send', auth, async (req, res) => {
       chatKey: key,
       from: req.username,
       displayname: ur.rows[0].displayname,
-      text: msgType === 'text' ? storeText : msgType === 'image' ? null : null,
+      text: (msgType === 'text' || msgType === 'sticker') ? storeText : null,
       msgType,
       ts: parseInt(msgRow.ts),
       fileName: fileName || null,
