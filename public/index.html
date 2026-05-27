@@ -7260,9 +7260,8 @@
             showCtxMenu(e, mw);
         });
 
-        // Also patch setupLongPress to show context menu on mobile
-        const _origSetupLongPress = setupLongPress;
-        setupLongPress = function () {
+        // Long press handler for mobile context menu
+        function setupLongPress() {
             document.querySelectorAll('.mw:not([data-lp])').forEach(mw => {
                 mw.dataset.lp = '1';
                 let _tid = null;
@@ -7768,7 +7767,8 @@
         /* ════════════════════════════════════════
            VOICE MESSAGES
         ════════════════════════════════════════ */
-        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null, _isRecording = false;
+        var _isRecording = false;
+        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null;
 
         function toggleVoice() {
             if (_isRecording) { stopVoice(); }
