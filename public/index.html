@@ -7412,28 +7412,32 @@
         let _wsReconn = null;
 
         function connectWS() {
-            if (!token) return;
+            if (!token) { console.log('WS: no token, skipping'); return; }
             if (_ws && (_ws.readyState === 0 || _ws.readyState === 1)) return;
             if (_wsReconn) { clearTimeout(_wsReconn); _wsReconn = null; }
             try {
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                _ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`);
-            } catch (e) { scheduleReconnect(); return; }
+                const wsUrl = `${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`;
+                console.log('WS: connecting to', wsUrl.substring(0, 80));
+                _ws = new WebSocket(wsUrl);
+            } catch (e) { console.log('WS: constructor error', e.message); scheduleReconnect(); return; }
 
             _ws.onopen = () => {
+                console.log('WS: connected!');
                 document.getElementById('csInd').classList.add('on');
                 document.getElementById('offlineBar').style.display = 'none';
                 _wsRetries = 0;
             };
 
-            _ws.onclose = () => {
+            _ws.onclose = (ev) => {
+                console.log('WS: closed code=' + ev.code + ' reason=' + (ev.reason||''));
                 document.getElementById('csInd').classList.remove('on');
                 _ws = null;
                 if (_wsRetries >= 2) document.getElementById('offlineBar').style.display = 'block';
                 scheduleReconnect();
             };
 
-            _ws.onerror = () => {};
+            _ws.onerror = (ev) => { console.log('WS: error event'); };
 
             _ws.onmessage = (e) => {
                 try {
@@ -7563,9 +7567,15 @@
 
         // Patch enterApp to connect WS, patch doLogout to disconnect
         const _origEnterApp2 = enterApp;
-        enterApp = function () { _origEnterApp2(); connectWS(); };
+        enterApp = function () {
+            try { _origEnterApp2(); } catch(e) { console.error('enterApp error:', e); }
+            connectWS();
+        };
         const _origDoLogout2 = doLogout;
         doLogout = function () { disconnectWS(); return _origDoLogout2(); };
+
+        // Fallback: try WS connection even if enterApp hasn't run
+        if (token) { setTimeout(function(){ if(!_ws||_ws.readyState>1) connectWS(); }, 2000); }
 
         /* ════════════════════════════════════════
             BOOT
