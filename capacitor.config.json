@@ -2,9 +2,5 @@
   "appId": "com.wavr.messenger",
   "appName": "Wavr",
   "webDir": "public",
-  "bundledWebRuntime": false,
-  "server": {
-    "url": "https://wavr-production.up.railway.app",
-    "allowNavigation": ["*.railway.app"]
-  }
+  "bundledWebRuntime": false
 }
