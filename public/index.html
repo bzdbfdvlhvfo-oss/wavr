@@ -5132,40 +5132,24 @@
             if (del) { e.stopPropagation(); delChatFrom(del.dataset.dcu); return; }
             const ci = e.target.closest('.ci');
             if (ci) {
-                const isGroup = ci.dataset.isGroup === 'true';
-                const groupId = ci.dataset.groupId || '';
-                const chatKey = ci.dataset.chatKey || '';
-                openChat({
-                    username: ci.dataset.cu,
-                    displayname: ci.dataset.cdn,
-                    avatar: _avCache[ci.dataset.cu] || '',
-                    isGroup, groupId, chatKey
-                });
+                if (ci.dataset.isGroup === 'true') {
+                    openGroupChat(ci.dataset.groupId || ci.dataset.cu, ci.dataset.cdn, _avCache[ci.dataset.cu] || '');
+                } else {
+                    openChat(ci.dataset.cu, ci.dataset.cdn, _avCache[ci.dataset.cu] || '');
+                }
             }
         });
 
         /* ════════════════════════════════════════
            OPEN / CLOSE CHAT
         ════════════════════════════════════════ */
-        async function openChat(usernameOrObj, displayname, avatar = '') {
+        async function openChat(username, displayname, avatar = '') {
             document.getElementById('sbox').value = '';
             document.getElementById('sres').style.display = 'none';
             document.getElementById('sres').innerHTML = '';
 
-            let cu, dn, av, isGroup = false, groupId = null, chatKey = null, isSaved = false;
-            if (typeof usernameOrObj === 'object') {
-                cu = usernameOrObj.username; dn = usernameOrObj.displayname || _userDnCache[cu] || cu;
-                av = usernameOrObj.avatar || _avCache[cu] || '';
-                isGroup = usernameOrObj.isGroup || false;
-                groupId = usernameOrObj.groupId || null;
-                chatKey = usernameOrObj.chatKey || null;
-                isSaved = usernameOrObj.isSaved || false;
-            } else {
-                cu = usernameOrObj; dn = displayname || _userDnCache[cu] || cu; av = avatar || _avCache[cu] || '';
-            }
-
-            chatWith = { username: cu, displayname: dn, avatar: av, isGroup, groupId, chatKey, isSaved };
-            if (chatWith.avatar) _avCache[cu] = chatWith.avatar;
+            chatWith = { username, displayname, avatar: avatar || _avCache[username] || '', isGroup: false };
+            if (chatWith.avatar) _avCache[username] = chatWith.avatar;
 
             lastTs = 0; seenIds = new Set(); mediaStore.clear();
             _earliestTs = 0; _loadingOlder = false;
@@ -5173,26 +5157,67 @@
             _chatReady = false;
             _chatPollBusy = false;
             if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } _pollAbort = null; }
-            cancelReply(); cancelSelectMode();
+            cancelReply();
 
             const tbav = document.getElementById('tbav');
-            setAv(tbav, chatWith.avatar || null, avc(cu), dn);
-            document.getElementById('tbname').textContent = dn;
-            document.getElementById('tbst').textContent = isGroup ? 'Группа · ' + (groupId || cu) : (isSaved ? 'Избранное' : '@' + cu);
+            setAv(tbav, chatWith.avatar || null, avc(username), displayname);
+            document.getElementById('tbname').textContent = displayname;
+            document.getElementById('tbst').textContent = '@' + username;
+            document.getElementById('tbav').onclick = openUM;
+            document.querySelector('.tbinf').onclick = openUM;
 
             document.getElementById('nochat').style.display = 'none';
             document.getElementById('cmain').style.display = 'flex';
             document.getElementById('app').classList.add('co');
 
-            // Toggle group info button
-            if (isGroup) {
-                // Click on topbar shows group info
-                document.getElementById('tbav').onclick = openGrpInfo;
-                document.querySelector('.tbinf').onclick = openGrpInfo;
-            } else {
-                document.getElementById('tbav').onclick = openUM;
-                document.querySelector('.tbinf').onclick = openUM;
-            }
+            const marea = document.getElementById('marea');
+            marea.classList.remove('switching');
+            void marea.offsetWidth;
+            marea.classList.add('switching');
+            marea.innerHTML = Array(5).fill(0).map((_, i) =>
+                `<div class="skel-msg${i % 2 === 0 ? '' : ' skel-msg-me'}">
+                  <div class="skel-msg-av"></div>
+                  <div class="skel-msg-bbl"><div class="skel skel-ln w80"></div><div class="skel skel-ln w55"></div></div>
+                </div>`
+            ).join('');
+            marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
+            marea.removeEventListener('scroll', _mareaScrollHandler);
+
+            await fetchAllMsgs();
+            document.getElementById('marea').classList.remove('switching');
+            _chatReady = true;
+            markRead(username);
+            _lastChatsJson = null;
+            loadChats();
+            marea.addEventListener('scroll', _mareaScrollHandler);
+        }
+
+        async function openGroupChat(groupId, gName, gAvatar = '') {
+            document.getElementById('sbox').value = '';
+            document.getElementById('sres').style.display = 'none';
+            document.getElementById('sres').innerHTML = '';
+
+            const ck = 'group:' + groupId;
+            chatWith = { username: groupId, displayname: gName, avatar: gAvatar || '', isGroup: true, groupId, chatKey: ck };
+
+            lastTs = 0; seenIds = new Set(); mediaStore.clear();
+            _earliestTs = 0; _loadingOlder = false;
+            _lastChatsJson = null;
+            _chatReady = false;
+            _chatPollBusy = false;
+            if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } _pollAbort = null; }
+            cancelReply();
+
+            const tbav = document.getElementById('tbav');
+            setAv(tbav, gAvatar || null, avc(groupId), gName);
+            document.getElementById('tbname').textContent = gName;
+            document.getElementById('tbst').textContent = 'Группа';
+            document.getElementById('tbav').onclick = openGrpInfo;
+            document.querySelector('.tbinf').onclick = openGrpInfo;
+
+            document.getElementById('nochat').style.display = 'none';
+            document.getElementById('cmain').style.display = 'flex';
+            document.getElementById('app').classList.add('co');
 
             const marea = document.getElementById('marea');
             marea.classList.remove('switching');
@@ -5204,11 +5229,9 @@
             await fetchAllMsgs();
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
-            if (isGroup) markReadGroup(groupId);
-            else markRead(cu);
+            markReadGroup(groupId);
             _lastChatsJson = null;
             loadChats();
-            loadDraft();
             marea.addEventListener('scroll', _mareaScrollHandler);
         }
 
@@ -7598,7 +7621,7 @@
                 toast('Группа создана!', 'ok');
                 closeGrpModal();
                 // Open the group
-                openChat({ username: d.group.id, displayname: d.group.name, isGroup: true, chatKey: d.chatKey });
+                openGroupChat(d.group.id, d.group.name);
             } catch (e) { toast('Ошибка сети', 'err'); }
             finally { btn.disabled = false; btn.textContent = 'Создать группу'; }
         }
@@ -7970,8 +7993,7 @@
            SAVED MESSAGES
         ════════════════════════════════════════ */
         function openSavedMessages() {
-            const key = [me.username, me.username].sort().join(':');
-            openChat({ username: me.username, displayname: 'Избранное', chatKey: key, isSaved: true });
+            openChat(me.username, 'Избранное');
         }
     </script>
 </body>
