@@ -20,11 +20,12 @@ jobs:
           distribution: zulu
           java-version: 17
 
-      - name: Install Capacitor
-        run: npm install -g @capacitor/core @capacitor/cli @capacitor/android
+      - name: Accept Android SDK licenses
+        run: |
+          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>/dev/null || true
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install Capacitor locally
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
       - name: Add Android platform
         run: npx cap add android
@@ -40,3 +41,6 @@ jobs:
         with:
           name: wavr-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Cleanup capacitor deps (keep server deps)
+        run: npm uninstall @capacitor/core @capacitor/cli @capacitor/android && npm prune
