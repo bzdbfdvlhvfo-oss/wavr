@@ -214,12 +214,16 @@ wss.on('connection', (ws, req) => {
 
 // WebSocket heartbeat every 30s
 setInterval(() => {
+  const toRemove = [];
   for (const [uname, set] of wsClients) {
     for (const ws of set) {
-      if (ws.isAlive === false) { ws.terminate(); set.delete(ws); continue; }
+      if (ws.isAlive === false) { ws.terminate(); toRemove.push({ set, ws }); continue; }
       ws.isAlive = false;
       ws.ping();
     }
+  }
+  for (const { set, ws } of toRemove) set.delete(ws);
+  for (const [uname, set] of wsClients) {
     if (!set.size) wsClients.delete(uname);
   }
 }, 30000);
@@ -311,9 +315,12 @@ app.get('/api/search/messages', auth, async (req, res) => {
     const q = (req.query.q || '').trim();
     if (!q || q.length < 2) return ok(res, { messages: [] });
     const username = req.username;
-    // Find all chat keys involving this user
-    const chatsR = await pool.query(`SELECT DISTINCT chat_key FROM messages WHERE chat_key LIKE $1`, [`%${username}%`]);
-    const chatKeys = chatsR.rows.map(r => r.chat_key).filter(k => k.includes(username));
+    // Find all chat keys for private chats
+    const chatsR = await pool.query(`SELECT DISTINCT chat_key FROM messages WHERE (from_user=$1 OR to_user=$1) AND chat_key NOT LIKE 'group:%'`, [username]);
+    const chatKeys = chatsR.rows.map(r => r.chat_key);
+    // Also include group chat keys
+    const grpR = await pool.query('SELECT chat_id FROM chat_members WHERE username=$1', [username]);
+    for (const g of grpR.rows) chatKeys.push(groupKey(g.chat_id));
     if (!chatKeys.length) return ok(res, { messages: [] });
     // Search messages in those chats
     const like = '%' + q.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
@@ -603,8 +610,15 @@ app.post('/api/react', auth, async (req, res) => {
     const r = await pool.query('SELECT reactions, chat_key FROM messages WHERE id=$1', [id]);
     if (!r.rows.length) return err(res, 'Не найдено', 404);
     const key = r.rows[0].chat_key;
-    const parts = key.split(':');
-    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    // Check access for both private and group chats
+    if (isGroupChat(key)) {
+      const gid = groupIdFromKey(key);
+      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
+      if (!mem.rows.length) return err(res, 'Нет прав', 403);
+    } else {
+      const parts = key.split(':');
+      if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    }
     let reactions = parseReactions(r.rows[0].reactions);
     if (!reactions[em]) reactions[em] = [];
     const idx = reactions[em].indexOf(req.username);
@@ -763,8 +777,16 @@ app.post('/api/pin/:id', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT chat_key FROM messages WHERE id=$1', [req.params.id]);
     if (!r.rows.length) return err(res, 'Не найдено', 404);
-    const parts = r.rows[0].chat_key.split(':');
-    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    const key = r.rows[0].chat_key;
+    // Check access for both private and group chats
+    if (isGroupChat(key)) {
+      const gid = groupIdFromKey(key);
+      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
+      if (!mem.rows.length) return err(res, 'Нет прав', 403);
+    } else {
+      const parts = key.split(':');
+      if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    }
     const m = await pool.query('SELECT pinned, from_user, to_user FROM messages WHERE id=$1', [req.params.id]);
     const wasPinned = m.rows[0].pinned;
     if (!wasPinned) {
@@ -899,8 +921,16 @@ app.get('/api/media/:id', auth, async (req, res) => {
       [req.params.id]
     );
     if (!r.rows.length) return err(res, 'Не найдено', 404);
-    const parts = r.rows[0].chat_key.split(':');
-    if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    const key = r.rows[0].chat_key;
+    // Check access for both private and group chats
+    if (isGroupChat(key)) {
+      const gid = groupIdFromKey(key);
+      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
+      if (!mem.rows.length) return err(res, 'Нет прав', 403);
+    } else {
+      const parts = key.split(':');
+      if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
+    }
     ok(res, { id: r.rows[0].id, text: r.rows[0].text, type: r.rows[0].type });
   } catch (e) { err(res, e.message, 500); }
 });

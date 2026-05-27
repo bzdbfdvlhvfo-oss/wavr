@@ -4189,6 +4189,7 @@
         <div class="ctx-item" id="ctx-reply"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></span> Ответить</div>
         <div class="ctx-item" id="ctx-react"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></span> Реакция</div>
         <div class="ctx-item" id="ctx-copy"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span> Копировать</div>
+        <div class="ctx-item" id="ctx-fwd"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg></span> Переслать</div>
         <div class="ctx-item" id="ctx-edit"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span> Редактировать</div>
         <div class="ctx-item" id="ctx-pin"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg></span> Закрепить</div>
         <div class="ctx-sep"></div>
@@ -7117,6 +7118,7 @@
             document.getElementById('ctx-del').style.display = (_ctxIsMe && !isDeleted) ? 'flex' : 'none';
             document.getElementById('ctx-copy').style.display = _ctxText ? 'flex' : 'none';
             document.getElementById('ctx-pin').style.display = isDeleted ? 'none' : 'flex';
+            document.getElementById('ctx-fwd').style.display = isDeleted ? 'none' : 'flex';
             const isPinned = mw.classList.contains('pinned');
             const pinSpan = document.getElementById('ctx-pin').querySelector('span');
             pinSpan.innerHTML = S.pin;
@@ -7180,6 +7182,54 @@
             if (_ctxMsgId) pinMsg(_ctxMsgId);
             closeCtxMenu();
         });
+        document.getElementById('ctx-fwd').addEventListener('click', async () => {
+            if (!_ctxMsgId) return;
+            const msgId = _ctxMsgId;
+            closeCtxMenu();
+            // Use cached chat list
+            let chats = [];
+            try { chats = JSON.parse(_lastChatsJson || '[]'); } catch(e) {}
+            const otherChats = chats.filter(c => {
+                if (chatWith) {
+                    if (c.otherUsername === chatWith.username) return false;
+                    if (c.isGroup && c.chatKey === chatWith.chatKey) return false;
+                }
+                return true;
+            });
+            // Build quick picker with confirm
+            let html = '<div style="max-height:50vh;overflow-y:auto">';
+            for (const c of otherChats) {
+                const dest = c.isGroup ? c.otherUsername : c.otherUsername;
+                html += `<div class="fwd-item" data-dest="${esc(dest)}" data-isgroup="${c.isGroup||false}" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer"><div class="av av-${avc(c.otherDisplayname)}" style="width:36px;height:36px;min-width:36px;font-size:11px;border-radius:50%;display:flex;align-items:center;justify-content:center">${ini(c.otherDisplayname)}</div><div style="font-size:14px;font-weight:500">${esc(c.otherDisplayname)}</div></div>`;
+            }
+            html += '</div>';
+            if (!otherChats.length) { toast('Нет чатов для пересылки', 'err'); return; }
+            // Show as a temporary modal
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:var(--bg2);border-radius:18px;padding:20px;width:90%;max-width:380px;border:1px solid var(--br);max-height:80vh;overflow-y:auto';
+            box.innerHTML = '<div style="font-size:15px;font-weight:600;margin-bottom:12px">Переслать в…</div>' + html;
+            overlay.appendChild(box);
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            box.addEventListener('click', async e => {
+                const item = e.target.closest('.fwd-item');
+                if (!item) return;
+                const dest = item.dataset.dest;
+                const isGroup = item.dataset.isgroup === 'true';
+                overlay.remove();
+                try {
+                    const body = { id: msgId };
+                    if (isGroup) body.chat = dest;
+                    else body.to = dest;
+                    const r = await fetch('/api/forward', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                    const d = await r.json();
+                    if (r.ok) toast('Переслано', 'ok');
+                    else toast(d.error || 'Ошибка', 'err');
+                } catch(e) { toast('Ошибка', 'err'); }
+            });
+            document.body.appendChild(overlay);
+        });
         document.getElementById('ctx-del').addEventListener('click', () => {
             if (_ctxMsgId) delMsg(_ctxMsgId);
             closeCtxMenu();
@@ -7227,6 +7277,17 @@
             stopTypingPoll();
             stopOnlinePoll();
             await _origOpenChat(username, displayname, avatar);
+            startTypingPoll();
+            startOnlinePoll();
+            pollOnline();
+            showPinnedBar();
+        };
+
+        const _origOpenGroupChat = openGroupChat;
+        openGroupChat = async function (groupId, gName, gAvatar) {
+            stopTypingPoll();
+            stopOnlinePoll();
+            await _origOpenGroupChat(groupId, gName, gAvatar);
             startTypingPoll();
             startOnlinePoll();
             pollOnline();
