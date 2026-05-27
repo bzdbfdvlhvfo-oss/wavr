@@ -188,12 +188,14 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws, req) => {
   const params = new URL(req.url, 'http://localhost').searchParams;
   const token = params.get('token');
+  console.log('WS connection attempt, token=' + (token ? token.slice(0,8)+'…' : 'none'));
   if (!token) { ws.close(4001, 'No token'); return; }
 
   (async () => {
     const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
-    if (!r.rows.length) { ws.close(4001, 'Invalid token'); return; }
+    if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
     const username = r.rows[0].username;
+    console.log('WS connected: ' + username);
     ws.username = username;
 
     if (!wsClients.has(username)) wsClients.set(username, new Set());
@@ -205,11 +207,10 @@ wss.on('connection', (ws, req) => {
       const set = wsClients.get(username);
       if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
     });
-    ws.on('error', () => {});
+    ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
 
-    // Send auth success
     ws.send(JSON.stringify({ type: 'connected', username }));
-  })().catch(() => ws.close(4001, 'Auth failed'));
+  })().catch((e) => { console.log('WS auth exception: ' + (e?.message || e)); try { ws.close(4001, 'Auth failed'); } catch(e2){} });
 });
 
 // WebSocket heartbeat every 30s
