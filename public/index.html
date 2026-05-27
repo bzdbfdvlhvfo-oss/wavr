@@ -475,6 +475,21 @@
             font-family: 'DM Mono', monospace;
         }
 
+        /* Connection status dot */
+        .cs-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #f44336;
+            vertical-align: middle;
+            margin-left: 6px;
+            transition: background .3s;
+            position: relative;
+            top: -2px;
+        }
+        .cs-dot.on { background: #4caf50; }
+
         .ib {
             width: 32px;
             height: 32px;
@@ -916,6 +931,42 @@
 
         .skel-ln.w55 {
             width: 55%;
+        }
+
+        .skel-msg {
+            display: flex;
+            gap: 7px;
+            max-width: 74%;
+            margin: 4px 0;
+            align-self: flex-start;
+        }
+        .skel-msg-me {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .skel-msg-av {
+            width: 28px;
+            height: 28px;
+            min-width: 28px;
+            border-radius: 50%;
+            background: var(--sk);
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity .2s;
+        }
+        .skel-msg-me .skel-msg-av { display: none; }
+        .skel-msg-bbl {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 9px 12px;
+            background: var(--sk);
+            border-radius: 12px;
+        }
+        .skel-msg-me .skel-msg-bbl {
+            background: var(--sk);
+            border-radius: 12px 12px 3px 12px;
         }
 
         /* Sidebar active chat glow */
@@ -3118,7 +3169,7 @@
             <!-- SIDEBAR -->
             <div class="sb" id="sb">
                 <div class="sbh">
-                    <div class="applogo">Wavr</div>
+                    <div class="applogo">Wavr <span id="csInd" class="cs-dot" title="Подключение…"></span></div>
                     <div class="urow">
                         <div class="av av-on" id="myav"
                             style="width:36px;height:36px;min-width:36px;font-size:12px;cursor:pointer"
@@ -4216,6 +4267,13 @@
             marea.classList.remove('switching');
             void marea.offsetWidth; // reflow to restart animation
             marea.classList.add('switching');
+            // Show skeleton while loading
+            marea.innerHTML = Array(5).fill(0).map((_, i) =>
+                `<div class="skel-msg${i % 2 === 0 ? '' : ' skel-msg-me'}">
+                  <div class="skel-msg-av"></div>
+                  <div class="skel-msg-bbl"><div class="skel skel-ln w80"></div><div class="skel skel-ln w55"></div></div>
+                </div>`
+            ).join('');
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
             // Remove old scroll listener
             marea.removeEventListener('scroll', _mareaScrollHandler);
@@ -5869,6 +5927,130 @@
             }
         }, { passive: true });
         document.addEventListener('touchend', () => { _touchStartX = 0; }, { passive: true });
+
+        /* ════════════════════════════════════════
+            WEB SOCKET CLIENT
+        ════════════════════════════════════════ */
+        let _ws = null;
+        let _wsReconn = null;
+
+        function connectWS() {
+            if (!token) return;
+            if (_ws && (_ws.readyState === 0 || _ws.readyState === 1)) return;
+            if (_wsReconn) { clearTimeout(_wsReconn); _wsReconn = null; }
+            try {
+                const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                _ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`);
+            } catch (e) { scheduleReconnect(); return; }
+
+            _ws.onopen = () => {
+                document.getElementById('csInd').classList.add('on');
+            };
+
+            _ws.onclose = () => {
+                document.getElementById('csInd').classList.remove('on');
+                _ws = null;
+                scheduleReconnect();
+            };
+
+            _ws.onerror = () => {};
+
+            _ws.onmessage = (e) => {
+                try {
+                    const d = JSON.parse(e.data);
+                    if (d.type === 'connected') return;
+                    if (d.type === 'message') {
+                        // New message — trigger immediate poll if in matching chat
+                        if (chatWith) {
+                            const ck = [me.username, chatWith.username].sort().join(':');
+                            if (d.chatKey === ck) {
+                                if (_chatPollBusy) return;
+                                _chatPollBusy = true; _chatPollStuckTs = Date.now();
+                                doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
+                            }
+                        }
+                        _lastChatsJson = null;
+                        return;
+                    }
+                    if (d.type === 'edit') {
+                        const mw = document.querySelector(`[data-id="${d.id}"]`);
+                        if (mw) {
+                            const bbl = mw.querySelector('.bbl');
+                            if (bbl && !bbl.classList.contains('del')) {
+                                bbl.innerHTML = formatMsg(d.text);
+                                if (!bbl.querySelector('.msg-edited')) {
+                                    const ed = document.createElement('span');
+                                    ed.className = 'msg-edited'; ed.textContent = 'изм.';
+                                    bbl.appendChild(ed);
+                                }
+                            }
+                        }
+                        return;
+                    }
+                    if (d.type === 'delete') {
+                        const mw = document.querySelector(`[data-id="${d.id}"]`);
+                        if (mw) {
+                            if (d.everyone) { mw.remove(); }
+                            else {
+                                const bbl = mw.querySelector('.bbl');
+                                if (bbl) { bbl.className = 'bbl del'; bbl.innerHTML = ''; bbl.textContent = 'Сообщение удалено'; }
+                                mw.querySelectorAll('.mab').forEach(b => b.remove());
+                                mw.querySelectorAll('.reacts').forEach(r => r.innerHTML = '');
+                                mw.querySelector('.reply-quote')?.remove();
+                            }
+                        }
+                        return;
+                    }
+                    if (d.type === 'read') {
+                        const t = document.querySelector(`[data-id="${d.id}"] .mtick`);
+                        if (t) { t.textContent = '✓✓'; t.className = 'mtick r'; }
+                        return;
+                    }
+                    if (d.type === 'reaction') {
+                        const rw = document.querySelector(`[data-rid="${d.id}"]`);
+                        if (rw) buildReactsInto(rw, d.id, d.reactions);
+                        return;
+                    }
+                    if (d.type === 'pin') {
+                        const mw = document.querySelector(`[data-id="${d.id}"]`);
+                        if (mw) {
+                            if (d.pinned) {
+                                document.querySelectorAll('.mw.pinned').forEach(el => el.classList.remove('pinned'));
+                                mw.classList.add('pinned');
+                                _pinnedMsgId = d.id;
+                                showPinnedBar();
+                            } else {
+                                mw.classList.remove('pinned');
+                                if (_pinnedMsgId === d.id) { _pinnedMsgId = null; document.getElementById('pinbar')?.classList.remove('show'); }
+                            }
+                        }
+                        return;
+                    }
+                    if (d.type === 'typing') {
+                        if (chatWith && d.from === chatWith.username) setTypingVisible(true, chatWith.displayname);
+                        return;
+                    }
+                } catch (e) {}
+            };
+        }
+
+        function scheduleReconnect() {
+            if (!token) return;
+            if (_wsReconn) clearTimeout(_wsReconn);
+            _wsReconn = setTimeout(connectWS, 5000);
+        }
+
+        function disconnectWS() {
+            if (_wsReconn) { clearTimeout(_wsReconn); _wsReconn = null; }
+            if (_ws) { try { _ws.close(); } catch (e) {} _ws = null; }
+            document.getElementById('csInd').classList.remove('on');
+        }
+
+        // Patch enterApp to connect WS, patch doLogout to disconnect
+        const _origEnterApp2 = enterApp;
+        enterApp = function () { _origEnterApp2(); connectWS(); };
+        const _origDoLogout2 = doLogout;
+        doLogout = function () { disconnectWS(); return _origDoLogout2(); };
 
         /* ════════════════════════════════════════
             BOOT
