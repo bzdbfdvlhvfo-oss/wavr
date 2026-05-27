@@ -3,3 +3,5 @@ android/
 .capacitor/
 .DS_Store
 *.log
+.idea/
+
