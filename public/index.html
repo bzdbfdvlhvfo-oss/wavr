@@ -1354,7 +1354,7 @@
             border: 1px solid rgba(255,255,255,.06);
             border-radius: 20px;
             padding: 3px 9px;
-            font-size: 13px;
+            font-size: 15px;
             cursor: pointer;
             user-select: none;
             touch-action: manipulation;
@@ -1387,6 +1387,28 @@
             text-align: center;
         }
         .rpill.mine .rcnt { color: var(--ac); }
+
+        .r-add {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border: 1px dashed var(--br);
+            border-radius: 50%;
+            background: transparent;
+            color: var(--t3);
+            cursor: pointer;
+            transition: all .15s;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .r-add:hover {
+            border-color: var(--ac);
+            color: var(--ac);
+            background: rgba(124,111,247,.08);
+        }
+        .r-add:active { transform: scale(.88); }
 
         /* Reply quote */
         .reply-quote {
@@ -1475,11 +1497,11 @@
         }
 
         .epbtn {
-            width: 34px;
-            height: 34px;
+            width: 38px;
+            height: 38px;
             border: none;
             background: transparent;
-            font-size: 20px;
+            font-size: 22px;
             border-radius: 8px;
             touch-action: manipulation;
             transition: background .1s;
@@ -1614,7 +1636,7 @@
             cursor: pointer;
             contain: layout style;
         }
-        .pinbar.show { display: flex; animation: pinSlide .25s ease both; }
+        .pinbar.show { display: flex; }
         @keyframes pinSlide { from { opacity: 0; margin-top: -32px; } to { opacity: 1; margin-top: 0; } }
         .pinbar:hover { background: linear-gradient(135deg, rgba(124, 111, 247, .18) 0%, rgba(168, 85, 247, .14) 100%); }
         .pinbar-ico { font-size: 12px; flex-shrink: 0; }
@@ -3573,8 +3595,9 @@
         }
         /* Pinbar glass */
         .pinbar.show {
-            animation: slideUp .25s cubic-bezier(.22, .9, .36, 1) both;
+            animation: fadeIn .25s ease both;
         }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         /* Modal scale entrance */
         .mover.show, #pm.show, #um.show, #adminPanel.show, #settingsBox.show {
             animation: scaleIn .2s cubic-bezier(.22, .9, .36, 1) both;
@@ -3758,6 +3781,12 @@
                             <path d="M9 6V4h6v2" />
                         </svg>
                     </button>
+                </div>
+                <!-- Pinned bar -->
+                <div class="pinbar" id="pinbar">
+                    <span class="pinbar-ico"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg></span>
+                    <span class="pinbar-text" id="pinbarText"></span>
+                    <button class="pinbar-close" id="pinbarClose" title="Открепить"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div class="marea" id="marea">
                     <div class="empty-chat">
@@ -5202,20 +5231,21 @@
             _newMsgCount = 0;
             document.getElementById('scrollDown').style.display = 'none';
             let ld = null;
+            const frag = document.createDocumentFragment();
             for (const m of msgs) {
                 seenIds.add(m.id);
                 if (m.text && m.type !== 'text') mediaStore.set(m.id, m.text);
-                // Cache displaynames
                 if (m.from && m.displayname) _userDnCache[m.from] = m.displayname;
                 const d = fd(m.ts);
                 if (d !== ld) {
                     const sep = document.createElement('div'); sep.className = 'dsep'; const sp = document.createElement('span'); sp.textContent = d; sep.appendChild(sp);
-                    a.appendChild(sep); ld = d;
+                    frag.appendChild(sep); ld = d;
                 }
                 const node = buildMsgNode(m);
-                a.appendChild(node);
+                frag.appendChild(node);
                 injectMsgExtras(node, m);
             }
+            a.appendChild(frag);
             a.scrollTop = a.scrollHeight;
             applyMsgGrouping();
             staggerMessages();
@@ -5230,27 +5260,26 @@
             const atBot = a.scrollHeight - a.scrollTop - a.clientHeight < 200;
             const hasOwn = fresh.some(m => m.from === me.username);
             const emp = a.querySelector('.empty-chat'); if (emp) emp.remove();
-            // Find last date separator already in DOM
             const seps = a.querySelectorAll('.dsep');
             let lastDate = seps.length ? seps[seps.length - 1].textContent : null;
+            const frag = document.createDocumentFragment();
             for (const m of fresh) {
                 if (!m._fake) seenIds.add(m.id);
                 if (m.text && m.type !== 'text') mediaStore.set(m.id, m.text);
                 if (m.from && m.displayname) _userDnCache[m.from] = m.displayname;
-                // Date separator
                 const d = fd(m.ts);
                 if (d !== lastDate) {
                     const sep = document.createElement('div'); sep.className = 'dsep'; const sp = document.createElement('span'); sp.textContent = d; sep.appendChild(sp);
-                    a.appendChild(sep); lastDate = d;
+                    frag.appendChild(sep); lastDate = d;
                 }
                 const node = buildMsgNode(m);
-                a.appendChild(node);
+                frag.appendChild(node);
                 injectMsgExtras(node, m);
-                // If media msg arrived via poll without base64 — lazy load it
                 if ((m.type === 'image' || m.type === 'video' || m.type === 'file') && !m.text && !m._fake) {
                     lazyLoadMedia(node, m);
                 }
             }
+            a.appendChild(frag);
             if (atBot || hasOwn) {
                 a.scrollTop = a.scrollHeight;
                 document.getElementById('scrollDown').style.display = 'none';
@@ -5441,17 +5470,25 @@
 
         function buildReactsInto(container, msgId, reactions) {
             container.innerHTML = '';
-            if (!reactions || !Object.keys(reactions).length) return;
-            Object.entries(reactions).forEach(([em, users]) => {
-                const mine = users.includes(me?.username);
-                const pill = document.createElement('span');
-                pill.className = 'rpill' + (mine ? ' mine' : '');
-                pill.dataset.react = msgId; pill.dataset.emoji = em;
-                pill.title = users.join(', ');
-                pill.textContent = em;
-                const cnt = document.createElement('span'); cnt.className = 'rcnt'; cnt.textContent = users.length;
-                pill.appendChild(cnt); container.appendChild(pill);
-            });
+            if (reactions && Object.keys(reactions).length) {
+                Object.entries(reactions).forEach(([em, users]) => {
+                    const mine = users.includes(me?.username);
+                    const pill = document.createElement('span');
+                    pill.className = 'rpill' + (mine ? ' mine' : '');
+                    pill.dataset.react = msgId; pill.dataset.emoji = em;
+                    pill.title = users.join(', ');
+                    pill.textContent = em;
+                    const cnt = document.createElement('span'); cnt.className = 'rcnt'; cnt.textContent = users.length;
+                    pill.appendChild(cnt); container.appendChild(pill);
+                });
+            }
+            addReactBtn(container, msgId);
+        }
+        function addReactBtn(container, msgId) {
+            const btn = document.createElement('button');
+            btn.className = 'r-add'; btn.dataset.pickerBtn = ''; btn.dataset.react = msgId;
+            btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+            container.appendChild(btn);
         }
 
         /* ════════════════════════════════════════
@@ -6610,8 +6647,9 @@
             if (!_ctxMsgId) return;
             const mw = document.querySelector(`[data-id="${_ctxMsgId}"]`);
             if (!mw) { closeCtxMenu(); return; }
+            const savedId = _ctxMsgId;
             closeCtxMenu();
-            setTimeout(() => showPicker(mw, _ctxMsgId), 50);
+            setTimeout(() => showPicker(mw, savedId), 50);
         });
         document.getElementById('ctx-copy').addEventListener('click', () => {
             if (_ctxText) { navigator.clipboard?.writeText(_ctxText).then(() => toast('Скопировано')).catch(() => { }); }

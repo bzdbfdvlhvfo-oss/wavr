@@ -608,8 +608,8 @@ app.get('/api/messages', auth, async (req, res) => {
     } else {
       const r = await pool.query(
         `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
-         FROM messages WHERE chat_key=$1 AND ts>$2 AND ts>$3 ORDER BY ts ASC LIMIT 300`,
-        [key, sinceTs, hiddenAt]
+         FROM messages WHERE chat_key=$1 AND ts>$2 AND ts>$3 ORDER BY ts ASC LIMIT 100`,
+          [key, sinceTs, hiddenAt]
       );
       rows = r.rows;
     }
