@@ -397,7 +397,13 @@ app.get('/api/profile/:username', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT username,displayname,avatar,bio,created_at,is_premium FROM users WHERE username=$1', [sanitize(req.params.username)]);
     if (!r.rows.length) return err(res, 'Не найден', 404);
-    ok(res, { user: r.rows[0] });
+    const user = r.rows[0];
+    // Stats
+    const msgR = await pool.query('SELECT COUNT(*) as cnt FROM messages WHERE (from_user=$1 OR to_user=$1) AND deleted=false', [user.username]);
+    user.msg_count = parseInt(msgR.rows[0].cnt) || 0;
+    const mediaR = await pool.query("SELECT COUNT(*) as cnt FROM messages WHERE (from_user=$1 OR to_user=$1) AND deleted=false AND type IN ('image','video','file')", [user.username]);
+    user.media_count = parseInt(mediaR.rows[0].cnt) || 0;
+    ok(res, { user });
   } catch (e) { err(res, e.message, 500); }
 });
 
