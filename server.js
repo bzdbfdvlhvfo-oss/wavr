@@ -98,6 +98,22 @@ async function initDB() {
       read_at   BIGINT DEFAULT 0,
       reactions TEXT DEFAULT '{}'
     );
+    CREATE TABLE IF NOT EXISTS chats (
+      id          TEXT PRIMARY KEY,
+      type        TEXT NOT NULL DEFAULT 'group',
+      name        TEXT NOT NULL,
+      avatar      TEXT,
+      description TEXT DEFAULT '',
+      creator     TEXT NOT NULL,
+      created_at  BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000)
+    );
+    CREATE TABLE IF NOT EXISTS chat_members (
+      chat_id   TEXT NOT NULL,
+      username  TEXT NOT NULL,
+      role      TEXT DEFAULT 'member',
+      joined_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000),
+      PRIMARY KEY (chat_id, username)
+    );
     CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_key, ts);
     CREATE INDEX IF NOT EXISTS idx_sessions  ON sessions(token);
   `);
@@ -213,28 +229,33 @@ function wsBroadcast(username, data) {
   }
 }
 
-// Helper to send push to chat participants
-function wsPushToChat(chatKey, sender, data) {
-  const parts = chatKey.split(':');
-  for (const p of parts) {
-    if (p !== sender) wsBroadcast(p, data);
-  }
-  // Also send to sender for multi-device sync
-  wsBroadcast(sender, data);
-  // Send push notifications to offline participants (not connected via WS)
-  for (const p of parts) {
-    if (p !== sender && (!wsClients.has(p) || ![...(wsClients.get(p) || [])].some(s => s.readyState === 1))) {
-      const pushPayload = {
-        type: 'new_message',
-        chatKey,
-        from: data.from,
-        displayname: data.displayname || data.from,
-        text: data.msgType === 'sticker' ? '🎨 Стикер' : (data.text || ''),
-        msgType: data.msgType,
-        id: data.id,
-        ts: data.ts
-      };
-      sendPushNotification(p, pushPayload);
+// Helper to send push to chat participants (works for both private and group chats)
+async function wsPushToChat(chatKey, sender, data) {
+  if (isGroupChat(chatKey)) {
+    const gid = groupIdFromKey(chatKey);
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [gid]);
+    for (const m of allMem.rows) wsBroadcast(m.username, data);
+  } else {
+    const parts = chatKey.split(':');
+    for (const p of parts) {
+      if (p !== sender) wsBroadcast(p, data);
+    }
+    wsBroadcast(sender, data);
+    // Push for offline private chat participants
+    for (const p of parts) {
+      if (p !== sender && (!wsClients.has(p) || ![...(wsClients.get(p) || [])].some(s => s.readyState === 1))) {
+        const pushPayload = {
+          type: 'new_message',
+          chatKey,
+          from: data.from,
+          displayname: data.displayname || data.from,
+          text: data.msgType === 'sticker' ? '🎨 Стикер' : (data.text || ''),
+          msgType: data.msgType,
+          id: data.id,
+          ts: data.ts
+        };
+        sendPushNotification(p, pushPayload);
+      }
     }
   }
 }
@@ -458,19 +479,35 @@ app.get('/api/search', auth, async (req, res) => {
 // SEND MESSAGE
 app.post('/api/send', auth, async (req, res) => {
   try {
-    const { to, text, type, fileName, fileSize, replyTo } = req.body;
-    const allowedTypes = ['text', 'image', 'video', 'file', 'sticker'];
+    const { to, chat, text, type, fileName, fileSize, replyTo } = req.body;
+    const allowedTypes = ['text', 'image', 'video', 'file', 'sticker', 'voice', 'poll'];
     const msgType = allowedTypes.includes(type) ? type : 'text';
     if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
     if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
-    if (!to) return err(res, 'Неверные данные');
-    if (msgType !== 'text' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
+    if (!to && !chat) return err(res, 'Неверные данные');
+    if (msgType !== 'text' && msgType !== 'poll' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
 
-    const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, req.username]);
-    if (blk.rows.length) return err(res, 'Пользователь заблокировал вас', 403);
+    const isGroup = !!chat;
+    let key, recipient;
+    if (isGroup) {
+      // Group chat
+      const g = await pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']);
+      if (!g.rows.length) return err(res, 'Группа не найдена', 404);
+      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, req.username]);
+      if (!mem.rows.length) return err(res, 'Вы не участник группы', 403);
+      key = groupKey(chat);
+      recipient = chat;
+    } else {
+      // Private chat
+      const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, req.username]);
+      if (blk.rows.length) return err(res, 'Пользователь заблокировал вас', 403);
+      key = chatKey(req.username, to);
+      recipient = to;
+    }
+
     const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
     if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
-    const key = chatKey(req.username, to);
+    const dn = ur.rows[0].displayname;
     const ts = Date.now();
     const storeText = msgType === 'text' ? sanitize(text.trim()) : text;
 
@@ -481,24 +518,24 @@ app.post('/api/send', auth, async (req, res) => {
       if (rr.rows.length) {
         replyToId = rpId;
         const rm = rr.rows[0];
-        const pv = rm.type === 'image' ? 'Фото' : rm.type === 'video' ? 'Видео' : rm.type === 'file' ? 'Файл' : sanitize((rm.text || '').slice(0, 80));
+        const pv = rm.type === 'image' ? 'Фото' : rm.type === 'video' ? 'Видео' : rm.type === 'file' ? 'Файл' : rm.type === 'voice' ? 'Голосовое' : rm.type === 'sticker' ? 'Стикер' : sanitize((rm.text || '').slice(0, 80));
         replyPreview = JSON.stringify({ from: rm.from_dn || rm.from_user, text: pv });
       }
     }
 
     const r = await pool.query(
       'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size,reply_to,reply_preview) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,ts',
-      [key, req.username, ur.rows[0].displayname, to, storeText, msgType, ts, fileName || null, fileSize || 0, replyToId, replyPreview]
+      [key, req.username, dn, recipient, storeText, msgType, ts, fileName || null, fileSize || 0, replyToId, replyPreview]
     );
     const msgRow = r.rows[0];
-    // Broadcast via WebSocket
+    // Broadcast
     const payload = {
       type: 'message',
       id: parseInt(msgRow.id),
       chatKey: key,
       from: req.username,
-      displayname: ur.rows[0].displayname,
-      text: (msgType === 'text' || msgType === 'sticker') ? storeText : null,
+      displayname: dn,
+      text: (msgType === 'text' || msgType === 'sticker' || msgType === 'poll') ? storeText : null,
       msgType,
       ts: parseInt(msgRow.ts),
       fileName: fileName || null,
@@ -506,7 +543,23 @@ app.post('/api/send', auth, async (req, res) => {
       replyTo: replyToId,
       replyPreview
     };
-    wsPushToChat(key, '', payload); // Send to both participants
+    if (isGroup) {
+      // Broadcast to all group members
+      const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [chat]);
+      for (const m of allMem.rows) wsBroadcast(m.username, payload);
+      // Push for offline members
+      for (const m of allMem.rows) {
+        if (m.username !== req.username && (!wsClients.has(m.username) || ![...(wsClients.get(m.username) || [])].some(s => s.readyState === 1))) {
+          sendPushNotification(m.username, {
+            type: 'new_message', chatKey: key, from: req.username, displayname: dn,
+            text: msgType === 'sticker' ? '🎨 Стикер' : msgType === 'voice' ? '🎤 Голосовое' : msgType === 'image' ? '📷 Фото' : msgType === 'file' ? '📎 Файл' : (text || '').slice(0, 100),
+            msgType, id: parseInt(msgRow.id), ts: parseInt(msgRow.ts)
+          });
+        }
+      }
+    } else {
+      wsPushToChat(key, '', payload);
+    }
     ok(res, { ok: true, id: parseInt(msgRow.id), ts: parseInt(msgRow.ts) });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -566,17 +619,28 @@ app.post('/api/react', auth, async (req, res) => {
 // MARK AS READ
 app.post('/api/read', auth, async (req, res) => {
   try {
-    const { other } = req.body;
-    if (!other) return err(res, 'Нужен other');
-    const key = chatKey(req.username, other);
+    const { other, chat } = req.body;
+    let key;
+    if (chat) {
+      key = groupKey(sanitize(chat));
+    } else if (other) {
+      key = chatKey(req.username, other);
+    } else {
+      return err(res, 'Нужен other или chat');
+    }
     const now = Date.now();
     const upd = await pool.query(
-      `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user=$3 AND to_user=$4 AND NOT deleted AND read_at=0 RETURNING id`,
-      [now, key, other, req.username]
+      `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user!=$3 AND to_user!=$3 AND NOT deleted AND read_at=0 RETURNING id`,
+      [now, key, req.username]
     );
     // Push read updates via WS
     for (const row of upd.rows) {
-      wsBroadcast(other, { type: 'read', id: row.id, read_at: now });
+      if (chat) {
+        const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [sanitize(chat)]);
+        for (const m of allMem.rows) wsBroadcast(m.username, { type: 'read', id: row.id, read_at: now });
+      } else {
+        wsBroadcast(other, { type: 'read', id: row.id, read_at: now });
+      }
     }
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
@@ -633,6 +697,62 @@ app.delete('/api/chat/:other', auth, async (req, res) => {
   } catch (e) { err(res, e.message, 500); }
 });
 
+// FORWARD MESSAGE
+app.post('/api/forward', auth, async (req, res) => {
+  try {
+    const { id, to, chat } = req.body;
+    if (!id) return err(res, 'Нужен id сообщения');
+    const msg = await pool.query('SELECT * FROM messages WHERE id=$1 AND NOT deleted', [id]);
+    if (!msg.rows.length) return err(res, 'Сообщение не найдено', 404);
+    const m = msg.rows[0];
+    // Check access to source message
+    if (isGroupChat(m.chat_key)) {
+      const gid = groupIdFromKey(m.chat_key);
+      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
+      if (!mem.rows.length) return err(res, 'Нет доступа', 403);
+    } else {
+      const parts = m.chat_key.split(':');
+      if (!parts.includes(req.username)) return err(res, 'Нет доступа', 403);
+    }
+    // Determine destination
+    let destKey;
+    if (chat) {
+      const g = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [sanitize(chat), req.username]);
+      if (!g.rows.length) return err(res, 'Нет доступа к группе', 403);
+      destKey = groupKey(sanitize(chat));
+    } else if (to) {
+      destKey = chatKey(req.username, to);
+    } else {
+      return err(res, 'Нужен to или chat');
+    }
+    const ts = Date.now();
+    const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
+    const dn = ur.rows[0].displayname;
+    const fwdPrefix = '↪ ' + (m.from_dn || m.from_user) + ': ';
+    const fwdText = m.type === 'text' ? fwdPrefix + (m.text || '') : m.text;
+    const r = await pool.query(
+      'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,ts',
+      [destKey, req.username, dn, to || chat || '', fwdText, m.type, ts, m.file_name || null, m.file_size || 0]
+    );
+    const newMsg = r.rows[0];
+    const payload = {
+      type: 'message',
+      id: parseInt(newMsg.id),
+      chatKey: destKey,
+      from: req.username,
+      displayname: dn,
+      text: m.type === 'text' ? fwdText : null,
+      msgType: m.type,
+      ts: parseInt(newMsg.ts),
+      fileName: m.file_name || null,
+      fileSize: m.file_size || 0,
+      isForward: true
+    };
+    wsPushToChat(destKey, '', payload);
+    ok(res, { ok: true, id: parseInt(newMsg.id) });
+  } catch (e) { err(res, e.message, 500); }
+});
+
 // PIN / UNPIN
 app.post('/api/pin/:id', auth, async (req, res) => {
   try {
@@ -656,19 +776,38 @@ app.post('/api/pin/:id', auth, async (req, res) => {
 const typingMap = new Map();
 app.post('/api/typing', auth, async (req, res) => {
   try {
-    const { to } = req.body;
-    if (!to) return err(res, 'Нужен to');
-    const key = chatKey(req.username, to);
+    const { to, chat } = req.body;
+    let key;
+    if (chat) {
+      key = groupKey(sanitize(chat));
+    } else if (to) {
+      key = chatKey(req.username, to);
+    } else {
+      return err(res, 'Нужен to или chat');
+    }
     typingMap.set(key, { username: req.username, ts: Date.now() });
-    wsBroadcast(to, { type: 'typing', from: req.username });
+    if (chat) {
+      const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [sanitize(chat)]);
+      for (const m of allMem.rows) {
+        if (m.username !== req.username) wsBroadcast(m.username, { type: 'typing', from: req.username, chatKey: key });
+      }
+    } else {
+      wsBroadcast(to, { type: 'typing', from: req.username, chatKey: key });
+    }
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
 app.get('/api/typing', auth, async (req, res) => {
   try {
-    const { b } = req.query;
-    if (!b) return ok(res, { typing: false });
-    const key = chatKey(req.username, b);
+    const { b, chat } = req.query;
+    let key;
+    if (chat) {
+      key = groupKey(sanitize(chat));
+    } else if (b) {
+      key = chatKey(req.username, b);
+    } else {
+      return ok(res, { typing: false });
+    }
     const entry = typingMap.get(key);
     if (entry && entry.username !== req.username && Date.now() - entry.ts < 4000) {
       return ok(res, { typing: true, username: entry.username });
@@ -699,9 +838,17 @@ app.get('/api/online/:username', auth, async (req, res) => {
 // GET MESSAGES
 app.get('/api/messages', auth, async (req, res) => {
   try {
-    const { b, since, before } = req.query;
-    if (!b) return err(res, 'Нужен b');
-    const key = chatKey(req.username, b);
+    const { b, chat, since, before } = req.query;
+    let key;
+    if (chat) {
+      const g = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [sanitize(chat), req.username]);
+      if (!g.rows.length) return err(res, 'Нет доступа к группе', 403);
+      key = groupKey(sanitize(chat));
+    } else if (b) {
+      key = chatKey(req.username, b);
+    } else {
+      return err(res, 'Нужен b или chat');
+    }
     const sinceTs = parseInt(since || '0');
     const beforeTs = parseInt(before || '0');
     const hid = await pool.query(
@@ -756,9 +903,15 @@ app.get('/api/media/:id', auth, async (req, res) => {
 // POLL
 app.get('/api/poll', auth, async (req, res) => {
   try {
-    const { b, since } = req.query;
-    if (!b) return ok(res, { messages: [], readUpdates: [], reactionUpdates: [] });
-    const key = chatKey(req.username, b);
+    const { b, chat, since } = req.query;
+    let key;
+    if (chat) {
+      key = groupKey(sanitize(chat));
+    } else if (b) {
+      key = chatKey(req.username, b);
+    } else {
+      return ok(res, { messages: [], readUpdates: [], reactionUpdates: [] });
+    }
     const sinceTs = parseInt(since || '0');
 
     // Track last poll ts to avoid repeat read/reaction queries
@@ -807,26 +960,30 @@ app.get('/api/poll', auth, async (req, res) => {
 // GET CHATS
 app.get('/api/chats', auth, async (req, res) => {
   try {
+    const chats = [];
+    const seen = new Set();
+
+    // ── Private chats ──
     const result = await pool.query(`
       SELECT m.chat_key,
         CASE WHEN m.from_user=$1 THEN m.to_user ELSE m.from_user END AS other_username,
-        m.text AS last_message, m.type AS last_type, m.ts AS last_ts, m.deleted
+        m.text AS last_message, m.type AS last_type, m.ts AS last_ts, m.deleted, m.from_user AS last_from
       FROM messages m
       LEFT JOIN chat_hidden hc ON hc.username=$1 AND hc.chat_key=m.chat_key
       INNER JOIN (
         SELECT chat_key, MAX(ts) AS max_ts
         FROM messages
-        WHERE (from_user=$1 OR to_user=$1)
+        WHERE (from_user=$1 OR to_user=$1) AND chat_key NOT LIKE 'group:%'
         GROUP BY chat_key
       ) latest ON m.chat_key = latest.chat_key AND m.ts = latest.max_ts
-      WHERE (m.from_user=$1 OR m.to_user=$1)
+      WHERE (m.from_user=$1 OR m.to_user=$1) AND m.chat_key NOT LIKE 'group:%'
         AND (hc.hidden_at IS NULL OR m.ts > hc.hidden_at)
       ORDER BY m.ts DESC
     `, [req.username]);
 
     const unreadR = await pool.query(`
       SELECT from_user, COUNT(*) as cnt FROM messages
-      WHERE to_user=$1 AND NOT deleted AND read_at=0
+      WHERE to_user=$1 AND NOT deleted AND read_at=0 AND chat_key NOT LIKE 'group:%'
       GROUP BY from_user
     `, [req.username]);
     const unreadMap = {};
@@ -846,10 +1003,7 @@ app.get('/api/chats', auth, async (req, res) => {
       for (const s of ls.rows) lastSeenMap[s.username] = parseInt(s.last_seen || 0);
     }
 
-    const seen = new Set();
-    const chats = [];
-    const sorted = [...result.rows].sort((a, b) => parseInt(b.last_ts) - parseInt(a.last_ts));
-    for (const row of sorted) {
+    for (const row of result.rows) {
       const other = row.other_username;
       if (!other || seen.has(other)) continue;
       seen.add(other);
@@ -859,18 +1013,79 @@ app.get('/api/chats', auth, async (req, res) => {
         if (row.last_type === 'image') preview = 'Фото';
         else if (row.last_type === 'video') preview = 'Видео';
         else if (row.last_type === 'file') preview = 'Файл';
-        else if (preview && preview.length > 60) preview = preview.slice(0, 60) + '…';
+        else if (row.last_type === 'voice') preview = '🎤 Голосовое';
+        else if (row.last_type === 'sticker') preview = '🎨 Стикер';
+        else if (row.last_type === 'poll') preview = '📊 Опрос';
+        else if (row.last_type === 'system') preview = row.last_message;
+        else if (row.last_from && row.last_from === req.username) preview = 'Вы: ' + (preview || '');
+        else if (preview && preview.length > 40) preview = preview.slice(0, 40) + '…';
       }
       chats.push({
+        chatKey: row.chat_key,
         otherUsername: other,
         otherDisplayname: u.displayname || other,
         otherAvatar: u.avatar || null,
         lastMessage: preview,
         lastTs: parseInt(row.last_ts),
         unread: unreadMap[other] || 0,
-        lastSeen: lastSeenMap[other] || 0
+        lastSeen: lastSeenMap[other] || 0,
+        isGroup: false
       });
     }
+
+    // ── Group chats ──
+    const groupsR = await pool.query(
+      'SELECT cm.chat_id, c.name, c.avatar, c.created_at FROM chat_members cm JOIN chats c ON cm.chat_id=c.id WHERE cm.username=$1 ORDER BY cm.joined_at DESC',
+      [req.username]
+    );
+    for (const g of groupsR.rows) {
+      const gKey = groupKey(g.chat_id);
+      if (seen.has(gKey)) continue;
+      seen.add(gKey);
+      // Get last message
+      const lastR = await pool.query(
+        'SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key=$1 ORDER BY ts DESC LIMIT 1',
+        [gKey]
+      );
+      let lastMessage = '';
+      let lastTs = parseInt(g.created_at);
+      let lastType = 'text';
+      if (lastR.rows.length) {
+        lastTs = parseInt(lastR.rows[0].ts);
+        lastType = lastR.rows[0].type;
+        if (lastR.rows[0].deleted) lastMessage = 'Удалено';
+        else if (lastType === 'image') lastMessage = 'Фото';
+        else if (lastType === 'video') lastMessage = 'Видео';
+        else if (lastType === 'file') lastMessage = 'Файл';
+        else if (lastType === 'voice') lastMessage = '🎤 Голосовое';
+        else if (lastType === 'sticker') lastMessage = '🎨 Стикер';
+        else if (lastType === 'poll') lastMessage = '📊 Опрос';
+        else if (lastType === 'system') lastMessage = lastR.rows[0].text;
+        else {
+          const dn = lastR.rows[0].from_dn || '';
+          lastMessage = dn ? `${dn}: ${lastR.rows[0].text.slice(0, 40)}` : lastR.rows[0].text.slice(0, 40);
+        }
+      }
+      // Unread for groups
+      const unreadGR = await pool.query(
+        'SELECT COUNT(*) as cnt FROM messages WHERE chat_key=$1 AND NOT deleted AND read_at=0 AND from_user!=$2',
+        [gKey, req.username]
+      );
+      chats.push({
+        chatKey: gKey,
+        groupId: g.chat_id,
+        otherUsername: g.chat_id,
+        otherDisplayname: g.name,
+        otherAvatar: g.avatar || null,
+        lastMessage,
+        lastTs,
+        unread: parseInt(unreadGR.rows[0].cnt) || 0,
+        lastSeen: 0,
+        isGroup: true
+      });
+    }
+
+    chats.sort((a, b) => b.lastTs - a.lastTs);
     ok(res, { chats });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -930,6 +1145,7 @@ app.delete('/api/admin/user/:username', auth, adminOnly, async (req, res) => {
     const u = req.params.username;
     if (u === OWNER) return err(res, 'Нельзя удалить владельца', 403);
     await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
+    await pool.query('DELETE FROM chat_members WHERE username=$1', [u]);
     await pool.query('DELETE FROM messages WHERE from_user=$1 OR to_user=$1', [u]);
     await pool.query('DELETE FROM users WHERE username=$1', [u]);
     ok(res, { ok: true });
@@ -1007,6 +1223,18 @@ app.get('/api/admin/system', auth, adminOnly, async (req, res) => {
     });
   } catch (e) { err(res, e.message, 500); }
 });
+app.post('/api/admin/broadcast', auth, adminOnly, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') return err(res, 'Текст обязателен', 400);
+    const users = await pool.query('SELECT username FROM users');
+    const msg = { type: 'admin_broadcast', text };
+    for (const row of users.rows) {
+      wsBroadcast(row.username, msg);
+    }
+    ok(res, { ok: true, sent: users.rows.length });
+  } catch (e) { err(res, e.message, 500); }
+});
 
 // In-memory rate limit fallback for IP-based limits
 const memRateLimitStore = new Map();
@@ -1020,6 +1248,281 @@ function memRateLimit(key, max, ms) {
   return e.n > max;
 }
 
+// ── Groups ──
+function genId() { return crypto.randomBytes(12).toString('base64url'); }
+
+function isGroupChat(key) { return key && key.startsWith('group:'); }
+function groupIdFromKey(key) { return key ? key.replace('group:', '') : null; }
+function groupKey(id) { return 'group:' + id; }
+
+// Create group
+app.post('/api/groups', auth, async (req, res) => {
+  try {
+    let { name, members } = req.body;
+    name = sanitize((name || '').trim());
+    if (!name || name.length < 1 || name.length > 100) return err(res, 'Название обязательно (1-100 символов)');
+    if (!members || !Array.isArray(members) || !members.length) return err(res, 'Добавьте хотя бы одного участника');
+    const allMembers = [...new Set([req.username, ...members.map(m => (m || '').toLowerCase().trim()).filter(Boolean)])];
+    if (allMembers.length < 2) return err(res, 'Минимум 2 участника');
+    if (allMembers.length > 200) return err(res, 'Максимум 200 участников');
+
+    const ph = allMembers.map((_, i) => `$${i + 1}`).join(',');
+    const ur = await pool.query(`SELECT username FROM users WHERE username IN (${ph})`, allMembers);
+    const found = new Set(ur.rows.map(r => r.username));
+    const missing = allMembers.filter(u => !found.has(u));
+    if (missing.length) return err(res, `Пользователи не найдены: ${missing.join(', ')}`, 404);
+
+    const id = genId();
+    const ts = Date.now();
+    await pool.query('INSERT INTO chats (id,type,name,creator,created_at) VALUES ($1,$2,$3,$4,$5)', [id, 'group', name, req.username, ts]);
+    for (const u of allMembers) {
+      await pool.query('INSERT INTO chat_members (chat_id,username,role,joined_at) VALUES ($1,$2,$3,$4)', [id, u, u === req.username ? 'owner' : 'member', ts]);
+    }
+    // Send system message
+    const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
+    const creatorDn = dnR.rows[0]?.displayname || req.username;
+    const sysMsg = `${creatorDn} создал(а) группу «${name}»`;
+    const key = groupKey(id);
+    const isR = await pool.query(
+      "INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts) VALUES ($1,$2,$3,$4,$5,'system',$6) RETURNING id,ts",
+      [key, req.username, creatorDn, id, sysMsg, ts]
+    );
+    // Notify all members via WS
+    const msgRow = isR.rows[0];
+    const payload = {
+      type: 'group_created',
+      chatKey: key,
+      groupId: id,
+      name,
+      creator: req.username,
+      from: req.username,
+      displayname: creatorDn,
+      text: sysMsg,
+      msgType: 'system',
+      id: parseInt(msgRow.id),
+      ts: parseInt(msgRow.ts),
+      members: allMembers
+    };
+    for (const u of allMembers) wsBroadcast(u, payload);
+    // Also create 1-on-1 chats with the group as virtual entity (so it appears in chat list)
+    ok(res, { ok: true, group: { id, name, type: 'group', creator: req.username, created_at: ts }, chatKey: key });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Get group info
+app.get('/api/groups/:id', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const g = await pool.query('SELECT * FROM chats WHERE id=$1', [id]);
+    if (!g.rows.length) return err(res, 'Группа не найдена', 404);
+    const mem = await pool.query('SELECT cm.username, cm.role, cm.joined_at, u.displayname, u.avatar FROM chat_members cm JOIN users u ON cm.username=u.username WHERE cm.chat_id=$1 ORDER BY cm.role ASC, cm.username ASC', [id]);
+    const isMember = mem.rows.some(r => r.username === req.username);
+    if (!isMember) return err(res, 'Вы не участник', 403);
+    ok(res, {
+      group: { ...g.rows[0], created_at: parseInt(g.rows[0].created_at) },
+      members: mem.rows.map(m => ({ username: m.username, role: m.role, joined_at: parseInt(m.joined_at), displayname: m.displayname, avatar: m.avatar }))
+    });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Update group
+app.put('/api/groups/:id', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const roleR = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    if (!roleR.rows.length) return err(res, 'Вы не участник', 403);
+    if (roleR.rows[0].role === 'member') return err(res, 'Нет прав', 403);
+    const { name, description } = req.body;
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+    if (name !== undefined) {
+      const n = sanitize((name || '').trim());
+      if (!n || n.length > 100) return err(res, 'Название 1-100 символов');
+      updates.push(`name=$${idx++}`); vals.push(n);
+    }
+    if (description !== undefined) {
+      updates.push(`description=$${idx++}`); vals.push(sanitize((description || '').slice(0, 500)));
+    }
+    if (!updates.length) return err(res, 'Нечего обновлять');
+    vals.push(id);
+    await pool.query(`UPDATE chats SET ${updates.join(',')} WHERE id=$${idx}`, vals);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Add members to group
+app.post('/api/groups/:id/members', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const roleR = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    if (!roleR.rows.length) return err(res, 'Вы не участник', 403);
+    if (roleR.rows[0].role === 'member') return err(res, 'Нет прав', 403);
+    let { members } = req.body;
+    if (!members || !Array.isArray(members) || !members.length) return err(res, 'Нужен список участников');
+    members = members.map(m => (m || '').toLowerCase().trim()).filter(Boolean);
+    const ph = members.map((_, i) => `$${i + 1}`).join(',');
+    const ur = await pool.query(`SELECT username FROM users WHERE username IN (${ph})`, members);
+    const found = new Set(ur.rows.map(r => r.username));
+    const missing = members.filter(u => !found.has(u));
+    if (missing.length) return err(res, `Не найдены: ${missing.join(', ')}`, 404);
+    const ex = await pool.query(`SELECT username FROM chat_members WHERE chat_id=$1 AND username = ANY($2)`, [id, members]);
+    const alreadyIn = new Set(ex.rows.map(r => r.username));
+    const toAdd = members.filter(u => !alreadyIn.has(u));
+    if (!toAdd.length) return err(res, 'Все уже в группе');
+    const ts = Date.now();
+    const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
+    const adderDn = dnR.rows[0]?.displayname || req.username;
+    for (const u of toAdd) {
+      await pool.query('INSERT INTO chat_members (chat_id,username,role,joined_at) VALUES ($1,$2,$3,$4)', [id, u, 'member', ts]);
+    }
+    const key = groupKey(id);
+    const names = toAdd.join(', ');
+    const sysMsg = `${adderDn} добавил(а) ${names}`;
+    const isR = await pool.query(
+      "INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts) VALUES ($1,$2,$3,$4,$5,'system',$6) RETURNING id,ts",
+      [key, req.username, adderDn, id, sysMsg, ts]
+    );
+    const payload = { type: 'members_added', chatKey: key, groupId: id, members: toAdd, adder: req.username, id: parseInt(isR.rows[0].id), ts: parseInt(isR.rows[0].ts) };
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
+    for (const m of allMem.rows) wsBroadcast(m.username, payload);
+    ok(res, { ok: true, added: toAdd });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Remove member / leave group
+app.delete('/api/groups/:id/members/:username', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const target = sanitize(req.params.username);
+    const roleR = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    if (!roleR.rows.length) return err(res, 'Вы не участник', 403);
+    const isSelf = target === req.username;
+    if (!isSelf && roleR.rows[0].role === 'member') return err(res, 'Нет прав', 403);
+    const targetRole = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, target]);
+    if (!targetRole.rows.length) return err(res, 'Участник не в группе', 404);
+    if (!isSelf && targetRole.rows[0].role === 'owner') return err(res, 'Нельзя удалить создателя', 403);
+    await pool.query('DELETE FROM chat_members WHERE chat_id=$1 AND username=$2', [id, target]);
+    const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [target]);
+    const targetDn = dnR.rows[0]?.displayname || target;
+    const key = groupKey(id);
+    let actorDn = req.username;
+    if (!isSelf) { const adn = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]); actorDn = adn.rows[0]?.displayname || req.username; }
+    const finalMsg = isSelf ? `${targetDn} покинул(а) группу` : `${actorDn} удалил(а) ${targetDn}`;
+    const ts = Date.now();
+    const isR = await pool.query(
+      "INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts) VALUES ($1,$2,$3,$4,$5,'system',$6) RETURNING id,ts",
+      [key, req.username, actorDn, id, finalMsg, ts]
+    );
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
+    const payload = { type: 'member_removed', chatKey: key, groupId: id, removed: target, actor: req.username, isSelf, id: parseInt(isR.rows[0].id), ts: parseInt(isR.rows[0].ts) };
+    for (const m of [...allMem.rows, { username: target }]) wsBroadcast(m.username, payload);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// Change member role
+app.put('/api/groups/:id/members/:username', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const target = sanitize(req.params.username);
+    const { role } = req.body;
+    if (!['admin', 'member'].includes(role)) return err(res, 'Роль: admin или member');
+    const myRole = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    if (!myRole.rows.length || myRole.rows[0].role !== 'owner') return err(res, 'Только создатель может менять роли', 403);
+    if (target === req.username) return err(res, 'Нельзя изменить свою роль');
+    const targetExists = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, target]);
+    if (!targetExists.rows.length) return err(res, 'Участник не в группе', 404);
+    await pool.query('UPDATE chat_members SET role=$1 WHERE chat_id=$2 AND username=$3', [role, id, target]);
+    const key = groupKey(id);
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
+    const payload = { type: 'role_changed', chatKey: key, groupId: id, username: target, role };
+    for (const m of allMem.rows) wsBroadcast(m.username, payload);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// ── Vote on poll ──
+app.post('/api/vote', auth, async (req, res) => {
+  try {
+    const { id, option } = req.body;
+    if (id === undefined || option === undefined) return err(res, 'Нужен id и option');
+    const msg = await pool.query('SELECT text, type, chat_key FROM messages WHERE id=$1 AND type=$2 AND NOT deleted', [id, 'poll']);
+    if (!msg.rows.length) return err(res, 'Опрос не найден', 404);
+    let poll = { question: '', options: [], votes: [], multiple: false };
+    try { poll = JSON.parse(msg.rows[0].text); } catch (e) { return err(res, 'Повреждённый опрос'); }
+    if (option < 0 || option >= poll.options.length) return err(res, 'Некорректная опция');
+    if (!poll.multiple) {
+      for (const v of (poll.votes || [])) {
+        if (v.users) v.users = v.users.filter(u => u !== req.username);
+      }
+    }
+    if (!poll.votes) poll.votes = [];
+    if (!poll.votes[option]) poll.votes[option] = { option, users: [] };
+    if (!poll.votes[option].users) poll.votes[option].users = [];
+    const idx = poll.votes[option].users.indexOf(req.username);
+    if (idx >= 0) {
+      poll.votes[option].users.splice(idx, 1);
+    } else {
+      poll.votes[option].users.push(req.username);
+    }
+    await pool.query('UPDATE messages SET text=$1 WHERE id=$2', [JSON.stringify(poll), id]);
+    wsPushToChat(msg.rows[0].chat_key, req.username, { type: 'vote_update', id, poll });
+    ok(res, { ok: true, poll });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// ── Archived chats ──
+const archivedChats = new Map();
+
+app.get('/api/archived', auth, async (req, res) => {
+  try {
+    const archived = [...(archivedChats.get(req.username) || new Set())];
+    ok(res, { archived });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+app.post('/api/archive/:chatKey', auth, async (req, res) => {
+  try {
+    const ck = decodeURIComponent(req.params.chatKey);
+    if (!archivedChats.has(req.username)) archivedChats.set(req.username, new Set());
+    archivedChats.get(req.username).add(ck);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+app.delete('/api/archive/:chatKey', auth, async (req, res) => {
+  try {
+    const ck = decodeURIComponent(req.params.chatKey);
+    if (archivedChats.has(req.username)) archivedChats.get(req.username).delete(ck);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
+// ── Leave group ──
+app.post('/api/groups/:id/leave', auth, async (req, res) => {
+  try {
+    const id = sanitize(req.params.id);
+    const mem = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    if (!mem.rows.length) return err(res, 'Вы не участник', 404);
+    if (mem.rows[0].role === 'owner') return err(res, 'Создатель не может покинуть группу. Сначала передайте права.', 403);
+    await pool.query('DELETE FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
+    const dn = dnR.rows[0]?.displayname || req.username;
+    const key = groupKey(id);
+    const ts = Date.now();
+    const isR = await pool.query(
+      "INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts) VALUES ($1,$2,$3,$4,$5,'system',$6) RETURNING id,ts",
+      [key, req.username, dn, id, `${dn} покинул(а) группу`, ts]
+    );
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
+    const payload = { type: 'member_removed', chatKey: key, groupId: id, removed: req.username, actor: req.username, isSelf: true, id: parseInt(isR.rows[0].id), ts: parseInt(isR.rows[0].ts) };
+    for (const m of [...allMem.rows, { username: req.username }]) wsBroadcast(m.username, payload);
+    ok(res, { ok: true });
+  } catch (e) { err(res, e.message, 500); }
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));

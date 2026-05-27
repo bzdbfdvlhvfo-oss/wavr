@@ -3558,6 +3558,103 @@
             background: rgba(124, 111, 247, .04);
             border-color: rgba(124, 111, 247, .2);
         }
+        /* ── Group modal ── */
+        #grpModal { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; }
+        #grpModal.show { display:flex; }
+        .grp-box { background:var(--bg2); border-radius:18px; padding:24px; width:90%; max-width:420px; border:1px solid var(--br); max-height:90vh; overflow-y:auto; }
+        .grp-box h2 { font-family:Syne,sans-serif; font-size:22px; font-weight:700; margin-bottom:4px; }
+        .grp-box h3 { font-size:13px; color:var(--t2); font-weight:400; margin-bottom:16px; }
+        .grp-box input { width:100%; background:var(--bg3); border:1px solid var(--br2); border-radius:10px; color:var(--tx); padding:10px 14px; font-size:14px; margin-bottom:10px; }
+        .grp-box input:focus { border-color:var(--ac); }
+        .grp-mem-list { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+        .grp-mem-chip { display:inline-flex; align-items:center; gap:4px; background:var(--bg4); border-radius:20px; padding:4px 8px 4px 4px; font-size:12px; }
+        .grp-mem-chip button { background:none; color:var(--t3); cursor:pointer; padding:0 2px; font-size:14px; }
+        .grp-mem-chip .mini-av { width:22px; height:22px; border-radius:50%; background:var(--ac); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+        .grp-add { display:flex; gap:8px; }
+        .grp-add input { flex:1; margin-bottom:0; }
+        .grp-add button { background:var(--ac); color:#fff; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; }
+        .grp-create-btn { width:100%; background:var(--acg); color:#fff; border-radius:12px; padding:12px; font-size:15px; font-weight:700; margin-top:12px; }
+        .grp-create-btn:disabled { opacity:.5; cursor:not-allowed; }
+        /* ── Group info ── */
+        #grpInfo { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; }
+        #grpInfo.show { display:flex; }
+        .grp-info-box { background:var(--bg2); border-radius:18px; padding:24px; width:90%; max-width:420px; border:1px solid var(--br); max-height:90vh; overflow-y:auto; }
+        .grp-info-box h2 { font-family:Syne,sans-serif; font-size:20px; font-weight:700; margin-bottom:2px; word-break:break-all; }
+        .grp-info-desc { font-size:13px; color:var(--t2); margin-bottom:12px; }
+        .grp-info-stats { display:flex; gap:16px; margin-bottom:16px; }
+        .grp-info-stat { font-size:12px; color:var(--t3); }
+        .grp-info-stat b { color:var(--t1); }
+        .grp-mem-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--br); }
+        .grp-mem-item:last-child { border-bottom:none; }
+        .grp-mem-item .av { width:34px; height:34px; min-width:34px; font-size:11px; border-radius:50%; }
+        .grp-mem-name { font-size:14px; font-weight:500; }
+        .grp-mem-role { font-size:11px; color:var(--t3); }
+        .grp-mem-actions { margin-left:auto; display:flex; gap:4px; }
+        .grp-mem-actions button { background:var(--bg4); color:var(--t2); border-radius:6px; padding:4px 8px; font-size:11px; }
+        .grp-info-actions { display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+        .grp-info-actions button { width:100%; background:var(--bg4); color:var(--tx); border-radius:10px; padding:10px; font-size:14px; }
+        .grp-info-actions .grp-leave { color:var(--rd); }
+        /* ── Poll ── */
+        .poll-wrap { background:var(--bg4); border-radius:12px; padding:12px; margin:4px 0; border:1px solid var(--br); }
+        .poll-title { font-weight:600; font-size:14px; margin-bottom:8px; color:var(--t1); }
+        .poll-opt { display:flex; align-items:center; gap:8px; padding:7px 10px; margin:3px 0; border-radius:8px; cursor:pointer; transition:background .12s; background:var(--bg3); }
+        .poll-opt:hover { background:var(--br2); }
+        .poll-opt.voted { background:rgba(124,111,247,.15); }
+        .poll-opt-bar { flex:1; height:6px; background:var(--br2); border-radius:3px; overflow:hidden; }
+        .poll-opt-fill { height:100%; background:var(--ac); border-radius:3px; transition:width .3s; }
+        .poll-opt-pct { font-size:11px; color:var(--t3); min-width:35px; text-align:right; }
+        .poll-opt-label { font-size:13px; flex:1; }
+        .poll-create-box { background:var(--bg2); border-radius:12px; padding:14px; margin-top:8px; border:1px solid var(--br); }
+        .poll-create-box .poll-opt-inp { width:100%; background:var(--bg3); border:1px solid var(--br2); border-radius:8px; color:var(--tx); padding:7px 10px; font-size:13px; margin:4px 0; }
+        .poll-create-box .poll-add-opt { background:var(--bg4); color:var(--ac); border-radius:8px; padding:6px 12px; font-size:12px; margin:4px 0; }
+        /* ── Voice record ── */
+        .voice-rec { display:none; align-items:center; gap:10px; padding:8px 14px; background:var(--bg4); border-radius:12px; border:1px solid var(--ac); }
+        .voice-rec.show { display:flex; }
+        .voice-rec-dot { width:10px; height:10px; border-radius:50%; background:var(--rd); animation:pulse-rec .8s infinite; }
+        @keyframes pulse-rec { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(1.2); } }
+        .voice-rec-time { font-size:13px; font-family:'DM Mono',monospace; color:var(--t1); }
+        .voice-rec-cancel { background:var(--bg3); color:var(--t2); border-radius:8px; padding:4px 10px; font-size:12px; }
+        .voice-rec-send { background:var(--ac); color:#fff; border-radius:8px; padding:4px 14px; font-size:12px; font-weight:600; }
+        .msg-voice { display:inline-flex; align-items:center; gap:8px; padding:4px 0; }
+        .msg-voice-play { background:var(--ac); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+        .msg-voice-play svg { color:#fff; }
+        .msg-voice-wave { flex:1; height:24px; display:flex; align-items:center; gap:2px; }
+        .msg-voice-wave span { width:3px; background:var(--ac); border-radius:2px; animation:vwav 1.2s ease-in-out infinite; }
+        .msg-voice-wave span:nth-child(odd) { animation-delay:.4s; height:12px; }
+        .msg-voice-wave span:nth-child(even) { animation-delay:.1s; height:18px; }
+        @keyframes vwav { 0%,100% { height:8px; } 50% { height:22px; } }
+        .msg-voice-dur { font-size:11px; color:var(--t3); font-family:'DM Mono',monospace; }
+        /* ── Forward picker ── */
+        #fwdModal { position:fixed; inset:0; z-index:210; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; }
+        #fwdModal.show { display:flex; }
+        .fwd-box { background:var(--bg2); border-radius:18px; padding:20px; width:90%; max-width:380px; border:1px solid var(--br); max-height:80vh; overflow-y:auto; }
+        .fwd-box h3 { font-size:15px; font-weight:600; margin-bottom:12px; }
+        .fwd-item { display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; cursor:pointer; transition:background .1s; }
+        .fwd-item:hover { background:var(--bg3); }
+        .fwd-item .av { width:36px; height:36px; min-width:36px; font-size:11px; border-radius:50%; }
+        .fwd-item-name { font-size:14px; font-weight:500; }
+        /* ── Select mode ── */
+        .msg-sel { position:relative; }
+        .msg-sel .sel-cb { position:absolute; left:8px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; border:2px solid var(--t3); display:none; align-items:center; justify-content:center; z-index:2; }
+        .sel-mode .sel-cb { display:flex; }
+        .sel-mode .mw { padding-left:36px; }
+        .sel-mode .sel-cb.checked { border-color:var(--ac); background:var(--ac); }
+        .sel-mode .sel-cb.checked::after { content:'✓'; color:#fff; font-size:11px; font-weight:700; }
+        .sel-bar { display:none; align-items:center; gap:8px; padding:8px 14px; background:var(--bg2); border-top:1px solid var(--br); position:sticky; bottom:0; }
+        .sel-bar.show { display:flex; }
+        .sel-bar button { background:var(--bg4); color:var(--tx); border-radius:8px; padding:6px 12px; font-size:13px; }
+        .sel-bar .sel-cnt { font-size:13px; color:var(--t2); }
+        /* ── Archived section ── */
+        .archive-section { margin-top:8px; }
+        .archive-toggle { display:flex; align-items:center; gap:6px; padding:6px 12px; color:var(--t3); font-size:12px; cursor:pointer; background:none; border:none; width:100%; text-align:left; }
+        .archive-toggle:hover { color:var(--t2); }
+        .grp-add-btn { background:var(--ac); color:#fff; border-radius:50%; width:20px; height:20px; font-size:14px; font-weight:700; cursor:pointer; border:none; display:inline-flex; align-items:center; justify-content:center; margin-left:auto; vertical-align:middle; }
+        .clabel { display:flex; align-items:center; }
+        .sys-msg { background:transparent!important; color:var(--t3)!important; text-align:center; font-size:11px; padding:4px 12px!important; max-width:100%!important; border-radius:8px!important; }
+        .msg-sender-name { font-size:12px; color:var(--ac); font-weight:600; margin-bottom:2px; padding-left:4px; }
+        .mw:not(.me) .msg-sender-name { padding-left:4px; }
+        .sticker-bbl { background:transparent!important; padding:2px!important; }
+        .sticker-emoji { font-size:40px; line-height:1; }
     </style>
 </head>
 
@@ -3618,13 +3715,13 @@
                 <div class="sbh">
                     <div class="applogo">Wavr <span id="csInd" class="cs-dot" title="Подключение…"></span></div>
                     <div class="urow">
-                        <div class="av av-on" id="myav"
-                            style="width:36px;height:36px;min-width:36px;font-size:12px;cursor:pointer"
-                            onclick="openPM()"></div>
-                        <div class="uinf" onclick="openPM()">
-                            <div class="uname" id="mydn"></div>
-                            <div class="utag" id="myun"></div>
-                        </div>
+                    <div class="av av-on" id="myav"
+                        style="width:36px;height:36px;min-width:36px;font-size:12px;cursor:pointer"
+                        onclick="openSavedMessages()" title="Избранное"></div>
+                    <div class="uinf" onclick="openPM()">
+                        <div class="uname" id="mydn"></div>
+                        <div class="utag" id="myun"></div>
+                    </div>
                         <button class="ib" id="adminBtn" onclick="openAdmin()" title="Панель" style="display:none">
                             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
                                 viewBox="0 0 24 24">
@@ -3661,9 +3758,15 @@
                     </div>
                 </div>
                 <div id="sres"></div>
-                <div class="clabel">Чаты</div>
+                <div class="clabel">Чаты <button class="grp-add-btn" onclick="openGrpModal()" title="Создать группу">+</button></div>
                 <div class="clist" id="clist">
                     <div class="empty-list"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь</div>
+                </div>
+                <div class="archive-section" id="archiveSection">
+                    <button class="archive-toggle" onclick="toggleArchive()">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        <span id="archiveLabel">Архив</span>
+                    </button>
                 </div>
             </div>
 
@@ -3691,6 +3794,12 @@
                         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <circle cx="12" cy="12" r="3"/>
                             <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </button>
+                    <button class="ib" onclick="openMsgSearch()" title="Поиск в чате">
+                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                         </svg>
                     </button>
                     <button class="ib dng" onclick="delChat()" title="Удалить чат">
@@ -3732,6 +3841,8 @@
                     <div class="typing-dots"><span></span><span></span><span></span></div>
                     <span class="typing-label" id="typingLabel">печатает…</span>
                 </div>
+                <!-- Poll creator -->
+                <div id="pollContainer" style="display:none;padding:0 14px"></div>
                 <div class="reply-bar" id="replyBar">
                     <div class="reply-bar-inner">
                         <span class="rbi-from" id="rbiFrom"></span>
@@ -3746,6 +3857,15 @@
                     <button class="edit-bar-cancel" onclick="cancelEdit()" title="Отмена"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div class="ibar">
+                    <!-- Voice record UI -->
+                    <div class="voice-rec" id="voiceRec">
+                        <span class="voice-rec-dot"></span>
+                        <span class="voice-rec-time" id="voiceTime">00:00</span>
+                        <button class="voice-rec-cancel" onclick="cancelVoice()">Отмена</button>
+                        <button class="voice-rec-send" onclick="stopVoice()">Отправить</button>
+                    </div>
+                    <button class="mbtn" onclick="startVoice()" title="Голосовое"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+                    <button class="mbtn" onclick="showPollCreator()" title="Опрос"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="14" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/></svg></button>
                     <label class="mbtn" style="cursor:pointer" title="Фото/видео">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                             viewBox="0 0 24 24">
@@ -4067,7 +4187,8 @@
                 <div class="admin-tabs" id="adminTabs">
                     <span class="atab act" data-tab="stats" onclick="switchAdminTab('stats')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="10"/></svg>Статистика</span>
                     <span class="atab" data-tab="users" onclick="switchAdminTab('users')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Юзеры</span>
-                    <span class="atab" data-tab="broadcast" onclick="switchAdminTab('broadcast')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Премиум</span>
+                    <span class="atab" data-tab="broadcast" onclick="switchAdminTab('broadcast')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Рассылка</span>
+                    <span class="atab" data-tab="premium" onclick="switchAdminTab('premium')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Премиум</span>
                     <span class="atab" data-tab="system" onclick="switchAdminTab('system')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Система</span>
                 </div>
                 <div class="admin-stats" id="adminStatsRow">
@@ -4131,6 +4252,47 @@
             <div class="upfill" id="upfill" style="width:0%"></div>
         </div>
         <span id="uppct">0%</span>
+    </div>
+
+    <!-- Group create modal -->
+    <div id="grpModal">
+        <div class="grp-box">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <h2 style="margin:0">Новая группа</h2>
+                <button style="background:none;color:var(--t3);font-size:18px;cursor:pointer" onclick="closeGrpModal()">&times;</button>
+            </div>
+            <h3>Создайте групповой чат</h3>
+            <input type="text" id="grpName" placeholder="Название группы" maxlength="100" />
+            <div class="grp-mem-list" id="grpMemList"></div>
+            <div class="grp-add">
+                <input type="text" id="grpSearchInp" placeholder="Добавить участника…" onkeydown="if(event.key==='Enter')addGrpMember()" />
+                <button onclick="addGrpMember()">+</button>
+            </div>
+            <button class="grp-create-btn" id="grpCreateBtn" onclick="createGroup()">Создать группу</button>
+        </div>
+    </div>
+
+    <!-- Group info modal -->
+    <div id="grpInfo">
+        <div class="grp-info-box" id="grpInfoContent"></div>
+    </div>
+
+    <!-- Forward picker modal -->
+    <div id="fwdModal">
+        <div class="fwd-box">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="margin:0">Переслать в…</h3>
+                <button style="background:none;color:var(--t3);font-size:18px;cursor:pointer" onclick="closeFwdModal()">&times;</button>
+            </div>
+            <div id="fwdList"></div>
+        </div>
+    </div>
+
+    <!-- Select mode bar -->
+    <div class="sel-bar" id="selBar">
+        <span class="sel-cnt" id="selCnt">0 выбрано</span>
+        <button onclick="fwdSelected()" style="margin-left:auto">Переслать</button>
+        <button onclick="cancelSelectMode()">Отмена</button>
     </div>
 
     <script>
@@ -4890,15 +5052,17 @@
                 if (c.otherAvatar) _avCache[c.otherUsername] = c.otherAvatar;
                 _userDnCache[c.otherUsername] = c.otherDisplayname;
                 const isOnline = c.lastSeen && (Date.now() - c.lastSeen < 300000);
-                const isActive = chatWith?.username === c.otherUsername;
+                const isActive = chatWith?.username === c.otherUsername || (chatWith?.groupId && chatWith.groupId === c.otherUsername);
                 const key = c.otherUsername;
                 seen.add(key);
                 let ci = existing.get(key);
                 if (ci) {
                     existing.delete(key);
-                    // update in-place
                     const wasActive = ci.classList.contains('act');
                     if (isActive !== wasActive) ci.classList.toggle('act', isActive);
+                    ci.dataset.isGroup = c.isGroup ? 'true' : 'false';
+                    ci.dataset.groupId = c.groupId || '';
+                    ci.dataset.chatKey = c.chatKey || '';
                     const avEl = ci.querySelector('.av');
                     if (avEl) {
                         const hasOn = avEl.classList.contains('av-on');
@@ -4928,6 +5092,9 @@
                     ci.className = 'ci' + (isActive ? ' act' : '');
                     ci.dataset.cu = key;
                     ci.dataset.cdn = c.otherDisplayname;
+                    ci.dataset.isGroup = c.isGroup ? 'true' : 'false';
+                    ci.dataset.groupId = c.groupId || '';
+                    ci.dataset.chatKey = c.chatKey || '';
                     ci.style.setProperty('--i', idx);
                     const avEl = document.createElement('div');
                     avEl.className = 'av' + (isOnline ? ' av-on' : '');
@@ -4964,19 +5131,41 @@
             const del = e.target.closest('.cdel');
             if (del) { e.stopPropagation(); delChatFrom(del.dataset.dcu); return; }
             const ci = e.target.closest('.ci');
-            if (ci) openChat(ci.dataset.cu, ci.dataset.cdn, _avCache[ci.dataset.cu] || '');
+            if (ci) {
+                const isGroup = ci.dataset.isGroup === 'true';
+                const groupId = ci.dataset.groupId || '';
+                const chatKey = ci.dataset.chatKey || '';
+                openChat({
+                    username: ci.dataset.cu,
+                    displayname: ci.dataset.cdn,
+                    avatar: _avCache[ci.dataset.cu] || '',
+                    isGroup, groupId, chatKey
+                });
+            }
         });
 
         /* ════════════════════════════════════════
            OPEN / CLOSE CHAT
         ════════════════════════════════════════ */
-        async function openChat(username, displayname, avatar = '') {
+        async function openChat(usernameOrObj, displayname, avatar = '') {
             document.getElementById('sbox').value = '';
             document.getElementById('sres').style.display = 'none';
             document.getElementById('sres').innerHTML = '';
 
-            chatWith = { username, displayname, avatar: avatar || _avCache[username] || '' };
-            if (chatWith.avatar) _avCache[username] = chatWith.avatar;
+            let cu, dn, av, isGroup = false, groupId = null, chatKey = null, isSaved = false;
+            if (typeof usernameOrObj === 'object') {
+                cu = usernameOrObj.username; dn = usernameOrObj.displayname || _userDnCache[cu] || cu;
+                av = usernameOrObj.avatar || _avCache[cu] || '';
+                isGroup = usernameOrObj.isGroup || false;
+                groupId = usernameOrObj.groupId || null;
+                chatKey = usernameOrObj.chatKey || null;
+                isSaved = usernameOrObj.isSaved || false;
+            } else {
+                cu = usernameOrObj; dn = displayname || _userDnCache[cu] || cu; av = avatar || _avCache[cu] || '';
+            }
+
+            chatWith = { username: cu, displayname: dn, avatar: av, isGroup, groupId, chatKey, isSaved };
+            if (chatWith.avatar) _avCache[cu] = chatWith.avatar;
 
             lastTs = 0; seenIds = new Set(); mediaStore.clear();
             _earliestTs = 0; _loadingOlder = false;
@@ -4984,39 +5173,42 @@
             _chatReady = false;
             _chatPollBusy = false;
             if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } _pollAbort = null; }
-            cancelReply();
+            cancelReply(); cancelSelectMode();
 
             const tbav = document.getElementById('tbav');
-            setAv(tbav, chatWith.avatar || null, avc(username), displayname);
-            document.getElementById('tbname').textContent = displayname;
-            document.getElementById('tbst').textContent = '@' + username;
+            setAv(tbav, chatWith.avatar || null, avc(cu), dn);
+            document.getElementById('tbname').textContent = dn;
+            document.getElementById('tbst').textContent = isGroup ? 'Группа · ' + (groupId || cu) : (isSaved ? 'Избранное' : '@' + cu);
 
             document.getElementById('nochat').style.display = 'none';
             document.getElementById('cmain').style.display = 'flex';
             document.getElementById('app').classList.add('co');
 
+            // Toggle group info button
+            if (isGroup) {
+                // Click on topbar shows group info
+                document.getElementById('tbav').onclick = openGrpInfo;
+                document.querySelector('.tbinf').onclick = openGrpInfo;
+            } else {
+                document.getElementById('tbav').onclick = openUM;
+                document.querySelector('.tbinf').onclick = openUM;
+            }
+
             const marea = document.getElementById('marea');
             marea.classList.remove('switching');
-            void marea.offsetWidth; // reflow to restart animation
+            void marea.offsetWidth;
             marea.classList.add('switching');
-            // Show skeleton while loading
-            marea.innerHTML = Array(5).fill(0).map((_, i) =>
-                `<div class="skel-msg${i % 2 === 0 ? '' : ' skel-msg-me'}">
-                  <div class="skel-msg-av"></div>
-                  <div class="skel-msg-bbl"><div class="skel skel-ln w80"></div><div class="skel skel-ln w55"></div></div>
-                </div>`
-            ).join('');
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
-            // Remove old scroll listener
             marea.removeEventListener('scroll', _mareaScrollHandler);
 
             await fetchAllMsgs();
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
-            markRead(username);
-            _lastChatsJson = null; // force sidebar refresh after marking read
+            if (isGroup) markReadGroup(groupId);
+            else markRead(cu);
+            _lastChatsJson = null;
             loadChats();
-            // Infinite scroll: attach scroll listener
+            loadDraft();
             marea.addEventListener('scroll', _mareaScrollHandler);
         }
 
@@ -5041,7 +5233,8 @@
         }
 
         function closeChat() {
-            chatWith = null; cancelReply();
+            saveDraft();
+            chatWith = null; cancelReply(); cancelSelectMode();
             _chatReady = false;
             document.getElementById('cmain').style.display = 'none';
             document.getElementById('nochat').style.display = 'flex';
@@ -5050,6 +5243,10 @@
 
         async function markRead(other) {
             try { await fetch('/api/read', { method: 'POST', headers: hdrs(), body: JSON.stringify({ other }) }); } catch (e) { }
+        }
+
+        async function markReadGroup(chatId) {
+            try { await fetch('/api/read', { method: 'POST', headers: hdrs(), body: JSON.stringify({ chat: chatId }) }); } catch (e) { }
         }
 
         /* ════════════════════════════════════════
@@ -5061,7 +5258,10 @@
             if (!chatWith || _loadingOlder || !_earliestTs) return;
             _loadingOlder = true;
             try {
-                const r = await fetch(`/api/messages?b=${encodeURIComponent(chatWith.username)}&before=${_earliestTs}`, { headers: hdrs() });
+                const q = chatWith.isGroup
+                    ? `chat=${encodeURIComponent(chatWith.groupId || chatWith.username)}&before=${_earliestTs}`
+                    : `b=${encodeURIComponent(chatWith.username)}&before=${_earliestTs}`;
+                const r = await fetch(`/api/messages?${q}`, { headers: hdrs() });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 const msgs = d.messages || [];
@@ -5118,7 +5318,10 @@
         async function fetchAllMsgs() {
             if (!chatWith) return;
             try {
-                const r = await fetch(`/api/messages?b=${encodeURIComponent(chatWith.username)}&since=0`, { headers: hdrs() });
+                const q = chatWith.isGroup
+                    ? `chat=${encodeURIComponent(chatWith.groupId || chatWith.username)}`
+                    : `b=${encodeURIComponent(chatWith.username)}`;
+                const r = await fetch(`/api/messages?${q}&since=0`, { headers: hdrs() });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 const msgs = d.messages || [];
@@ -5137,20 +5340,22 @@
 
         async function doPoll() {
             if (!chatWith) return;
-            const pollTarget = chatWith.username;
+            const pollTarget = chatWith.isGroup ? (chatWith.groupId || chatWith.username) : chatWith.username;
+            const pollIsGroup = chatWith.isGroup;
             // Cancel any previous stuck request
             if (_pollAbort) { try { _pollAbort.abort(); } catch (e) { } }
             _pollAbort = new AbortController();
             const signal = _pollAbort.signal;
             try {
-                // since = lastTs - 1: перекрываем граничный случай ts === lastTs.
-                // seenIds отфильтрует уже виденные сообщения, дублей не будет.
                 const since = lastTs > 0 ? lastTs - 1 : 0;
-                const r = await fetch(`/api/poll?b=${encodeURIComponent(pollTarget)}&since=${since}`, { headers: hdrs(), signal });
+                const q = pollIsGroup
+                    ? `chat=${encodeURIComponent(pollTarget)}&since=${since}`
+                    : `b=${encodeURIComponent(pollTarget)}&since=${since}`;
+                const r = await fetch(`/api/poll?${q}`, { headers: hdrs(), signal });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 // Bail if user switched chat while request was in-flight
-                if (!chatWith || chatWith.username !== pollTarget) return;
+                if (!chatWith || (pollIsGroup ? chatWith.groupId !== pollTarget : chatWith.username !== pollTarget)) return;
 
                 const msgs = d.messages || [];
 
@@ -5447,6 +5652,38 @@
                 se.textContent = m.text || '😊';
                 bbl.appendChild(se); bodyInner.appendChild(bbl);
 
+            } else if (m.type === 'system') {
+                const bbl = document.createElement('div'); bbl.className = 'bbl sys-msg';
+                bbl.textContent = m.text || '';
+                bodyInner.appendChild(bbl);
+
+            } else if (m.type === 'voice') {
+                const bbl = document.createElement('div'); bbl.className = 'bbl';
+                const vw = document.createElement('div'); vw.className = 'msg-voice';
+                const playBtn = document.createElement('div'); playBtn.className = 'msg-voice-play';
+                playBtn.innerHTML = '<svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+                vw.appendChild(playBtn);
+                const wave = document.createElement('div'); wave.className = 'msg-voice-wave';
+                for (let i = 0; i < 12; i++) wave.appendChild(document.createElement('span'));
+                vw.appendChild(wave);
+                bbl.appendChild(vw);
+                // Click to play
+                playBtn.addEventListener('click', () => {
+                    const audio = new Audio(m.text);
+                    audio.play().catch(() => {});
+                    const icon = playBtn.querySelector('svg');
+                    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+                    audio.onended = () => { if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>'; };
+                });
+                bodyInner.appendChild(bbl);
+
+            } else if (m.type === 'poll') {
+                const bbl = document.createElement('div'); bbl.className = 'bbl';
+                let poll = { question: 'Опрос', options: [], votes: [], multiple: false };
+                try { poll = JSON.parse(m.text || '{}'); } catch (e) { }
+                bbl.innerHTML = renderPoll(poll, m.id);
+                bodyInner.appendChild(bbl);
+
             } else {
                 // TEXT — ONLY formatted text inside .bbl, reply-quote is OUTSIDE
                 const bbl = document.createElement('div'); bbl.className = 'bbl';
@@ -5482,8 +5719,27 @@
 
             // Assemble
             if (!isMe) mw.appendChild(mav);
+
+            // Sender name in group chats
+            if (chatWith?.isGroup && !isMe && m.type !== 'system') {
+                const nameEl = document.createElement('div');
+                nameEl.className = 'msg-sender-name';
+                nameEl.textContent = m.displayname || m.from || '';
+                nameEl.style.cssText = 'font-size:12px;color:var(--ac);font-weight:600;margin-bottom:2px;padding-left:4px';
+                bodyWrap.insertBefore(nameEl, bodyWrap.firstChild);
+            }
+
             mw.appendChild(bodyWrap);
             if (isMe) mw.appendChild(mav);
+
+            // Select checkbox
+            const cb = document.createElement('div');
+            cb.className = 'sel-cb';
+            mw.appendChild(cb);
+            mw.querySelector('.sel-cb').addEventListener('click', e => {
+                e.stopPropagation();
+                if (selectMode) toggleSelectMsg(m.id);
+            });
 
             return mw;
         }
@@ -5667,13 +5923,14 @@
             const minp = document.getElementById('minp');
             if (minp) minp.value = '';
             try {
-                const body = { to: chatWith.username, text: stickerEmoji, type: 'sticker' };
+                const body = { text: stickerEmoji, type: 'sticker' };
+                if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
+                else body.to = chatWith.username;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
                 if (!r.ok) throw Error('send fail');
                 const j = await r.json();
                 if (!j.ok) throw Error(j.error || 'send failed');
                 seenIds.add(j.id);
-                // Show optimistic sticker
                 const fake = {
                     id: 't' + Date.now(), from: me.username, displayname: me.displayname,
                     text: stickerEmoji, type: 'sticker', ts: Date.now(),
@@ -5770,7 +6027,6 @@
             inp.value = ''; inp.style.height = '';
 
             const replyToId = _replyTo ? _replyTo.id : null;
-            // Save reply data BEFORE cancelReply() clears _replyTo
             let fakeReplyPreview = null;
             if (_replyTo) {
                 fakeReplyPreview = JSON.stringify({ from: _replyTo.from || '?', text: _replyTo.text || '' });
@@ -5787,7 +6043,9 @@
             appendMsgs([fake]);
 
             try {
-                const body = { to: chatWith.username, text };
+                const body = { text };
+                if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
+                else body.to = chatWith.username;
                 if (replyToId) body.replyTo = replyToId;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
                 const d = await r.json();
@@ -5801,6 +6059,7 @@
                         _chatPollBusy = true; _chatPollStuckTs = Date.now();
                         doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
                     }
+                    saveDraft();
                 } else {
                     const el = document.querySelector(`[data-id="${tmpId}"]`);
                     if (el) el.remove();
@@ -5869,7 +6128,9 @@
                     sendData = c.toDataURL('image/jpeg', .82);
                 }
                 showUpload(f.name, 75);
-                const sendBody = { to: chatWith.username, text: sendData, type: msgType, fileName: f.name, fileSize: f.size };
+                const sendBody = { text: sendData, type: msgType, fileName: f.name, fileSize: f.size };
+                if (chatWith.isGroup) sendBody.chat = chatWith.groupId || chatWith.username;
+                else sendBody.to = chatWith.username;
                 if (replyToId) sendBody.replyTo = replyToId;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(sendBody) });
                 const d = await r.json();
@@ -5883,7 +6144,10 @@
                     appendMsgs([fake]);
                     seenIds.add(d.id);
                     if (caption) {
-                        const r2 = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify({ to: chatWith.username, text: caption }) });
+                        const capBody = { text: caption };
+                        if (chatWith.isGroup) capBody.chat = chatWith.groupId || chatWith.username;
+                        else capBody.to = chatWith.username;
+                        const r2 = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(capBody) });
                         const d2 = await r2.json();
                         if (d2.ok) {
                             const fake2 = {
@@ -6242,6 +6506,16 @@
 
         async function delChat() {
             if (!chatWith) return;
+            if (chatWith.isGroup) {
+                const action = await wConfirm(`Покинуть группу «${chatWith.displayname}»?`, S.warning, true);
+                if (!action) return;
+                try {
+                    await fetch('/api/groups/' + (chatWith.groupId || chatWith.username) + '/leave', { method: 'POST', headers: hdrs() });
+                    closeChat(); _lastChatsJson = null; loadChats();
+                    toast('Вы покинули группу');
+                } catch (e) { }
+                return;
+            }
             const action = await delConfirm(`Удалить чат с ${chatWith.displayname}?`, S.trash);
             if (!action) return;
             try {
@@ -6254,6 +6528,19 @@
         }
 
         async function delChatFrom(u) {
+            const ci = document.querySelector(`.ci[data-cu="${u}"]`);
+            const isGroup = ci?.dataset?.isGroup === 'true';
+            if (isGroup) {
+                // For group chats from sidebar, just archive
+                const action = await wConfirm('Архивировать группу?', S.warning, false);
+                if (!action) return;
+                try {
+                    await fetch('/api/archive/' + encodeURIComponent(ci.dataset.chatKey || ''), { method: 'POST', headers: hdrs() });
+                    _lastChatsJson = null; loadChats();
+                    toast('Группа архивирована');
+                } catch (e) { }
+                return;
+            }
             const action = await delConfirm('Удалить чат?', S.trash);
             if (!action) return;
             try {
@@ -6289,7 +6576,8 @@
             statsRow.style.display = tab === 'stats' ? '' : 'none';
             if (tab === 'stats') { loadAdminStats(); body.innerHTML = ''; }
             else if (tab === 'users') { document.getElementById('adminSearch').value = ''; loadAdminUsers(); }
-            else if (tab === 'broadcast') { renderPremium(); }
+            else if (tab === 'broadcast') { renderBroadcast(); }
+            else if (tab === 'premium') { renderPremium(); }
             else if (tab === 'system') { renderSystemInfo(); }
         }
 
@@ -6376,6 +6664,54 @@
                 if (r.ok) { toast(`@${username} — ${labels[action]}`); loadAdminStats(); loadAdminUsers(); document.getElementById('adminSearch').value = ''; }
                 else toast(d.error || 'Ошибка', 'err');
             } catch (e) { toast('Сетевая ошибка', 'err'); }
+        }
+
+         function renderBroadcast() {
+            const body = document.getElementById('adminBody');
+            body.className = 'admin-body';
+            body.innerHTML = `
+                <div style="margin-bottom:12px">
+                    <label style="display:block;font-size:12px;color:var(--t2);margin-bottom:6px;font-weight:600">Текст рассылки</label>
+                    <textarea class="bc-text" id="bcText" placeholder="Введите сообщение для всех пользователей…" style="min-height:120px"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+                        <button class="bc-send" id="bcSendBtn" style="width:auto;padding:10px 22px;margin-top:0">${S.send} Отправить всем</button>
+                        <span id="bcStatus" style="font-size:12px;color:var(--t2)"></span>
+                    </div>
+                </div>
+                <div style="border-top:1px solid var(--br);padding-top:14px;margin-top:4px">
+                    <div style="font-size:12px;color:var(--t2);margin-bottom:8px;font-weight:600">Предпросмотр</div>
+                    <div id="bcPreview" style="background:var(--bg2);border-radius:11px;padding:14px;font-size:13px;color:var(--tx);min-height:40px;word-break:break-word;white-space:pre-wrap">Текст появится здесь…</div>
+                </div>
+            `;
+            const textarea = document.getElementById('bcText');
+            const preview = document.getElementById('bcPreview');
+            textarea.oninput = () => {
+                preview.textContent = textarea.value.trim() || 'Текст появится здесь…';
+            };
+            document.getElementById('bcSendBtn').onclick = sendBroadcast;
+        }
+        async function sendBroadcast() {
+            const text = document.getElementById('bcText').value.trim();
+            if (!text) { toast('Введите текст', 'err'); return; }
+            const ok2 = await wConfirm('Отправить рассылку всем пользователям?', S.warning, true);
+            if (!ok2) return;
+            const btn = document.getElementById('bcSendBtn');
+            const status = document.getElementById('bcStatus');
+            btn.disabled = true;
+            btn.style.opacity = '.5';
+            status.textContent = 'Отправка…';
+            try {
+                const r = await fetch('/api/admin/broadcast', { method: 'POST', headers: hdrs(), body: JSON.stringify({ text }) });
+                const d = await r.json();
+                if (r.ok) {
+                    toast('Рассылка отправлена ' + d.sent + ' пользователям');
+                    status.textContent = '✓ Отправлено ' + d.sent + ' пользователям';
+                    document.getElementById('bcText').value = '';
+                    document.getElementById('bcPreview').textContent = 'Текст появится здесь…';
+                } else { toast(d.error || 'Ошибка', 'err'); status.textContent = 'Ошибка'; }
+            } catch (e) { toast('Сетевая ошибка', 'err'); status.textContent = 'Ошибка'; }
+            btn.disabled = false;
+            btn.style.opacity = '1';
         }
 
         function renderPremium() {
@@ -6545,9 +6881,10 @@
         function sendTyping() {
             if (!chatWith || !token || _editingId) return;
             const now = Date.now();
-            if (now - _typingLastSent < 2500) return; // throttle: send at most every 2.5s
+            if (now - _typingLastSent < 2500) return;
             _typingLastSent = now;
-            fetch('/api/typing', { method: 'POST', headers: hdrs(), body: JSON.stringify({ to: chatWith.username }) }).catch(() => { });
+            const body = chatWith.isGroup ? { chat: chatWith.groupId || chatWith.username } : { to: chatWith.username };
+            fetch('/api/typing', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) }).catch(() => { });
         }
 
         function startTypingPoll() {
@@ -6562,7 +6899,10 @@
         async function pollTyping() {
             if (!chatWith || !token) return;
             try {
-                const r = await fetch(`/api/typing?b=${encodeURIComponent(chatWith.username)}`, { headers: hdrs() });
+                const q = chatWith.isGroup
+                    ? `chat=${encodeURIComponent(chatWith.groupId || chatWith.username)}`
+                    : `b=${encodeURIComponent(chatWith.username)}`;
+                const r = await fetch(`/api/typing?${q}`, { headers: hdrs() });
                 const d = await r.json();
                 setTypingVisible(!!d.typing, chatWith.displayname);
             } catch (e) { }
@@ -7011,15 +7351,17 @@
                 try {
                     const d = JSON.parse(e.data);
                     if (d.type === 'connected') return;
-                    if (d.type === 'message') {
-                        // New message — trigger immediate poll if in matching chat
+                    if (d.type === 'message' || d.type === 'group_created') {
                         if (chatWith) {
-                            const ck = [me.username, chatWith.username].sort().join(':');
-                            if (d.chatKey === ck) {
+                            const myCk = chatWith.isGroup ? (chatWith.chatKey || 'group:' + (chatWith.groupId || chatWith.username)) : [me.username, chatWith.username].sort().join(':');
+                            if (d.chatKey === myCk) {
                                 if (_chatPollBusy) return;
                                 _chatPollBusy = true; _chatPollStuckTs = Date.now();
                                 doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
                             }
+                        }
+                        if (d.type === 'group_created' && d.members && d.members.includes(me.username)) {
+                            toast('Вас добавили в группу «' + esc(d.name) + '»', 'ok');
                         }
                         _lastChatsJson = null;
                         return;
@@ -7078,7 +7420,39 @@
                         return;
                     }
                     if (d.type === 'typing') {
-                        if (chatWith && d.from === chatWith.username) setTypingVisible(true, chatWith.displayname);
+                        if (chatWith) {
+                            const from = d.from || '';
+                            if (chatWith.isGroup) {
+                                if (from !== me.username) setTypingVisible(true, from);
+                            } else if (from === chatWith.username) {
+                                setTypingVisible(true, chatWith.displayname);
+                            }
+                        }
+                        return;
+                    }
+                    if (d.type === 'vote_update') {
+                        const mw = document.querySelector(`[data-id="${d.id}"]`);
+                        if (mw) {
+                            const bbl = mw.querySelector('.bbl');
+                            if (bbl) bbl.innerHTML = renderPoll(d.poll, d.id);
+                        }
+                        return;
+                    }
+                    if (d.type === 'members_added' || d.type === 'member_removed') {
+                        _lastChatsJson = null;
+                        if (chatWith && chatWith.chatKey === d.chatKey) {
+                            if (_chatPollBusy) return;
+                            _chatPollBusy = true; _chatPollStuckTs = Date.now();
+                            doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
+                        }
+                        return;
+                    }
+                    if (d.type === 'role_changed') {
+                        toast('Роль изменена', 'ok');
+                        return;
+                    }
+                    if (d.type === 'admin_broadcast') {
+                        toast('📢 ' + esc(d.text || ''), 'ok', 5000);
                         return;
                     }
                 } catch (e) {}
@@ -7165,6 +7539,460 @@
             const sv = localStorage.getItem('wavr_s');
             if (sv) { const s = JSON.parse(sv); me = s.me; token = s.token; enterApp(); }
         } catch (e) { localStorage.removeItem('wavr_s'); }
+
+        /* ════════════════════════════════════════
+           GROUP CHATS
+        ════════════════════════════════════════ */
+        let grpMembers = [];
+
+        function openGrpModal() {
+            grpMembers = [];
+            document.getElementById('grpMemList').innerHTML = '';
+            document.getElementById('grpName').value = '';
+            document.getElementById('grpSearchInp').value = '';
+            document.getElementById('grpModal').classList.add('show');
+        }
+
+        function closeGrpModal() {
+            document.getElementById('grpModal').classList.remove('show');
+            grpMembers = [];
+        }
+
+        function addGrpMember() {
+            const inp = document.getElementById('grpSearchInp');
+            const name = (inp.value || '').toLowerCase().trim();
+            if (!name || grpMembers.includes(name) || name === me.username) return;
+            grpMembers.push(name);
+            inp.value = '';
+            renderGrpMembers();
+            // search for user existence async
+            fetch('/api/search?q=' + encodeURIComponent(name), { headers: hdrs() })
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.users || !d.users.some(u => u.username === name)) {
+                        toast('Пользователь «' + name + '» не найден', 'err');
+                        grpMembers = grpMembers.filter(m => m !== name);
+                        renderGrpMembers();
+                    }
+                }).catch(() => {});
+        }
+
+        function renderGrpMembers() {
+            const list = document.getElementById('grpMemList');
+            list.innerHTML = grpMembers.map(m =>
+                '<span class="grp-mem-chip"><span class="mini-av av-' + avc(m) + '">' + ini(m) + '</span>' + esc(m) +
+                '<button onclick="grpMembers=grpMembers.filter(x=>x!==\'' + m + '\');renderGrpMembers()">×</button></span>'
+            ).join('');
+        }
+
+        async function createGroup() {
+            const name = document.getElementById('grpName').value.trim();
+            if (!name) return toast('Введите название группы', 'err');
+            if (!grpMembers.length) return toast('Добавьте хотя бы одного участника', 'err');
+            const btn = document.getElementById('grpCreateBtn');
+            btn.disabled = true; btn.textContent = 'Создание…';
+            try {
+                const r = await fetch('/api/groups', { method: 'POST', headers: hdrs(), body: JSON.stringify({ name, members: grpMembers }) });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error || 'Ошибка', 'err');
+                toast('Группа создана!', 'ok');
+                closeGrpModal();
+                // Open the group
+                openChat({ username: d.group.id, displayname: d.group.name, isGroup: true, chatKey: d.chatKey });
+            } catch (e) { toast('Ошибка сети', 'err'); }
+            finally { btn.disabled = false; btn.textContent = 'Создать группу'; }
+        }
+
+        async function openGrpInfo() {
+            if (!chatWith || !chatWith.isGroup) return;
+            try {
+                const r = await fetch('/api/groups/' + chatWith.groupId, { headers: hdrs() });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error, 'err');
+                const g = d.group;
+                let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+                    '<h2 style="margin:0">' + esc(g.name) + '</h2>' +
+                    '<button style="background:none;color:var(--t3);font-size:18px;cursor:pointer" onclick="closeGrpInfo()">&times;</button></div>';
+                if (g.description) html += '<div class="grp-info-desc">' + esc(g.description) + '</div>';
+                html += '<div class="grp-info-stats">' +
+                    '<div class="grp-info-stat"><b>' + d.members.length + '</b> участников</div>' +
+                    '<div class="grp-info-stat">Создана <b>' + fd(parseInt(g.created_at)) + '</b></div></div>';
+                html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px;font-weight:600">Участники</div>';
+                for (const m of d.members) {
+                    html += '<div class="grp-mem-item"><div class="av av-' + avc(m.username) + '">' + ini(m.displayname) + '</div>' +
+                        '<div><div class="grp-mem-name">' + esc(m.displayname) + (m.username === me.username ? ' (Вы)' : '') + '</div>' +
+                        '<div class="grp-mem-role">' + (m.role === 'owner' ? 'Создатель' : m.role === 'admin' ? 'Админ' : 'Участник') + '</div></div></div>';
+                }
+                // Member actions (for owner/admins)
+                const myRole = d.members.find(m => m.username === me.username)?.role;
+                html += '<div class="grp-info-actions">';
+                if (myRole !== 'member') {
+                    html += '<button onclick="openGrpModal();addGrpMembersToExisting(\'' + g.id + '\')">Добавить участников</button>';
+                }
+                if (myRole !== 'owner') {
+                    html += '<button class="grp-leave" onclick="leaveGroup(\'' + g.id + '\')">Покинуть группу</button>';
+                }
+                html += '<button onclick="closeGrpInfo()">Закрыть</button></div>';
+                document.getElementById('grpInfoContent').innerHTML = html;
+                document.getElementById('grpInfo').classList.add('show');
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        function closeGrpInfo() { document.getElementById('grpInfo').classList.remove('show'); }
+
+        async function leaveGroup(id) {
+            const ok = await wConfirm('Покинуть группу?', S.warning, true);
+            if (!ok && ok !== 'everyone') return;
+            try {
+                const r = await fetch('/api/groups/' + id + '/leave', { method: 'POST', headers: hdrs() });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error, 'err');
+                closeGrpInfo();
+                closeChat();
+                toast('Вы покинули группу', 'ok');
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        async function addGrpMembersToExisting(gid) {
+            // This will be called after group creation modal is opened for editing
+            // We'll track the group ID for adding members
+            closeGrpInfo();
+            openGrpModal();
+            document.getElementById('grpCreateBtn').textContent = 'Добавить участников';
+            document.getElementById('grpCreateBtn').onclick = async () => {
+                if (!grpMembers.length) return toast('Добавьте участников', 'err');
+                const btn = document.getElementById('grpCreateBtn');
+                btn.disabled = true; btn.textContent = 'Добавление…';
+                try {
+                    const r = await fetch('/api/groups/' + gid + '/members', { method: 'POST', headers: hdrs(), body: JSON.stringify({ members: grpMembers }) });
+                    const d = await r.json();
+                    if (!r.ok) return toast(d.error, 'err');
+                    toast('Участники добавлены', 'ok');
+                    closeGrpModal();
+                } catch (e) { toast('Ошибка', 'err'); }
+                finally { btn.disabled = false; btn.textContent = 'Добавить участников'; btn.onclick = createGroup; }
+            };
+            document.getElementById('grpName').value = '';
+            document.getElementById('grpName').parentElement.style.display = 'none';
+        }
+
+        /* ════════════════════════════════════════
+           VOICE MESSAGES
+        ════════════════════════════════════════ */
+        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null;
+
+        function startVoice() {
+            if (!navigator.mediaDevices) return toast('Микрофон не поддерживается', 'err');
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                voiceChunks = [];
+                mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
+                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) voiceChunks.push(e.data); };
+                mediaRecorder.onstop = () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    clearInterval(voiceTimer);
+                    document.getElementById('voiceRec').classList.remove('show');
+                    if (voiceChunks.length) {
+                        const blob = new Blob(voiceChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.onload = () => sendVoice(reader.result);
+                        reader.readAsDataURL(blob);
+                    }
+                };
+                mediaRecorder.start();
+                voiceStartTime = Date.now();
+                document.getElementById('voiceRec').classList.add('show');
+                voiceTimer = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
+                    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+                    document.getElementById('voiceTime').textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                }, 200);
+            }).catch(() => toast('Нет доступа к микрофону', 'err'));
+        }
+
+        function cancelVoice() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                voiceChunks = [];
+                mediaRecorder.stop();
+            }
+        }
+
+        function stopVoice() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        }
+
+        async function sendVoice(dataUrl) {
+            if (!chatWith) return;
+            try {
+                const body = { type: 'voice', text: dataUrl };
+                if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
+                else body.to = chatWith.username;
+                const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error, 'err');
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        /* ════════════════════════════════════════
+           POLLS
+        ════════════════════════════════════════ */
+        let pollOptions = [];
+
+        function showPollCreator() {
+            pollOptions = ['', ''];
+            const inp = document.getElementById('minp');
+            inp.style.display = 'none';
+            let html = '<div class="poll-create-box" id="pollCreateBox">' +
+                '<input class="poll-opt-inp" id="pollQuestion" placeholder="Вопрос…" style="font-weight:600" />';
+            for (let i = 0; i < pollOptions.length; i++) {
+                html += '<input class="poll-opt-inp poll-opt-item" placeholder="Вариант ' + (i + 1) + '" value="" oninput="pollOptions[' + i + ']=this.value" />';
+            }
+            html += '<button class="poll-add-opt" onclick="addPollOption()">+ Добавить вариант</button>' +
+                '<div style="display:flex;gap:8px;margin-top:8px">' +
+                '<button style="flex:1;background:var(--ac);color:#fff;border-radius:8px;padding:8px;font-size:13px;font-weight:600" onclick="sendPoll()">Отправить</button>' +
+                '<button style="flex:1;background:var(--bg4);color:var(--t2);border-radius:8px;padding:8px;font-size:13px" onclick="cancelPoll()">Отмена</button></div></div>';
+            document.getElementById('pollContainer').innerHTML = html;
+            document.getElementById('pollContainer').style.display = 'block';
+        }
+
+        function addPollOption() {
+            pollOptions.push('');
+            showPollCreator();
+        }
+
+        function cancelPoll() {
+            pollOptions = [];
+            document.getElementById('pollContainer').style.display = 'none';
+            document.getElementById('pollContainer').innerHTML = '';
+            document.getElementById('minp').style.display = '';
+        }
+
+        async function sendPoll() {
+            if (!chatWith) return;
+            const question = document.getElementById('pollQuestion')?.value?.trim();
+            if (!question) return toast('Введите вопрос', 'err');
+            const opts = [];
+            document.querySelectorAll('.poll-opt-item').forEach(el => {
+                const v = el.value.trim();
+                if (v) opts.push(v);
+            });
+            if (opts.length < 2) return toast('Минимум 2 варианта', 'err');
+            const poll = { question, options: opts, votes: [], multiple: false };
+            try {
+                const body = { type: 'poll', text: JSON.stringify(poll) };
+                if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
+                else body.to = chatWith.username;
+                const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error, 'err');
+                cancelPoll();
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        async function votePoll(id, option) {
+            try {
+                const r = await fetch('/api/vote', { method: 'POST', headers: hdrs(), body: JSON.stringify({ id, option }) });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error, 'err');
+                // UI will be updated via WS or polling
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        function renderPoll(poll, msgId) {
+            const totalVotes = (poll.votes || []).reduce((s, v) => s + (v.users || []).length, 0);
+            let myVote = -1;
+            (poll.votes || []).forEach((v, i) => {
+                if (v.users && v.users.includes(me.username)) myVote = i;
+            });
+            let html = '<div class="poll-wrap">';
+            html += '<div class="poll-title">' + esc(poll.question) + '</div>';
+            (poll.options || []).forEach((opt, i) => {
+                const v = (poll.votes || [])[i] || { users: [] };
+                const cnt = (v.users || []).length;
+                const pct = totalVotes > 0 ? Math.round(cnt / totalVotes * 100) : 0;
+                const isVoted = v.users && v.users.includes(me.username);
+                html += '<div class="poll-opt' + (isVoted ? ' voted' : '') + '" onclick="votePoll(' + msgId + ',' + i + ')">' +
+                    '<div class="poll-opt-label">' + esc(opt) + '</div>' +
+                    '<div class="poll-opt-bar"><div class="poll-opt-fill" style="width:' + pct + '%"></div></div>' +
+                    '<div class="poll-opt-pct">' + (pct > 0 ? pct + '%' : '') + '</div></div>';
+            });
+            html += '<div style="font-size:11px;color:var(--t3);margin-top:4px">' + totalVotes + ' голосов</div>';
+            html += '</div>';
+            return html;
+        }
+
+        /* ════════════════════════════════════════
+           FORWARD & SELECT MODE
+        ════════════════════════════════════════ */
+        let selectMode = false, selectedMsgs = new Set();
+
+        function enterSelectMode(msgId) {
+            selectMode = true;
+            selectedMsgs = new Set([msgId]);
+            document.getElementById('marea').classList.add('sel-mode');
+            document.getElementById('selBar').classList.add('show');
+            updateSelCount();
+            // Show all checkboxes
+            document.getElementById('marea').querySelectorAll('.mw').forEach(el => {
+                el.querySelector('.sel-cb').style.display = 'flex';
+                const mid = parseInt(el.dataset.msgid);
+                if (selectedMsgs.has(mid)) el.querySelector('.sel-cb').classList.add('checked');
+            });
+        }
+
+        function toggleSelectMsg(msgId) {
+            if (!selectMode) return;
+            if (selectedMsgs.has(msgId)) selectedMsgs.delete(msgId);
+            else selectedMsgs.add(msgId);
+            updateSelCount();
+            // Update checkbox
+            const el = document.querySelector('.mw[data-msgid="' + msgId + '"]');
+            if (el) {
+                const cb = el.querySelector('.sel-cb');
+                if (selectedMsgs.has(msgId)) cb.classList.add('checked');
+                else cb.classList.remove('checked');
+            }
+        }
+
+        function updateSelCount() {
+            document.getElementById('selCnt').textContent = selectedMsgs.size + ' выбрано';
+        }
+
+        function cancelSelectMode() {
+            selectMode = false;
+            selectedMsgs.clear();
+            document.getElementById('marea').classList.remove('sel-mode');
+            document.getElementById('selBar').classList.remove('show');
+        }
+
+        async function fwdSelected() {
+            if (!selectedMsgs.size) return;
+            // Show forward picker
+            try {
+                const r = await fetch('/api/chats', { headers: hdrs() });
+                const d = await r.json();
+                if (!r.ok) return toast('Ошибка', 'err');
+                const chats = d.chats || [];
+                const list = chats.map(c => ({
+                    chatKey: c.chatKey,
+                    isGroup: c.isGroup,
+                    name: c.otherDisplayname,
+                    username: c.otherUsername,
+                    avatar: c.otherAvatar
+                }));
+                document.getElementById('fwdList').innerHTML = list.map(c =>
+                    '<div class="fwd-item" onclick="doForward(\'' + (c.isGroup ? c.username : c.otherUsername) + '\',' + c.isGroup + ')">' +
+                    '<div class="av av-' + avc(c.name) + '">' + ini(c.name) + '</div>' +
+                    '<div class="fwd-item-name">' + esc(c.name) + '</div></div>'
+                ).join('');
+                document.getElementById('fwdModal').classList.add('show');
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        function closeFwdModal() { document.getElementById('fwdModal').classList.remove('show'); }
+
+        async function doForward(dest, isGroup) {
+            closeFwdModal();
+            const ids = [...selectedMsgs];
+            let done = 0;
+            for (const id of ids) {
+                try {
+                    const body = { id };
+                    if (isGroup) body.chat = dest;
+                    else body.to = dest;
+                    const r = await fetch('/api/forward', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                    if (r.ok) done++;
+                } catch (e) {}
+            }
+            toast('Переслано: ' + done + '/' + ids.length, 'ok');
+            cancelSelectMode();
+        }
+
+        /* ════════════════════════════════════════
+           ARCHIVE
+        ════════════════════════════════════════ */
+        let showArchived = false;
+
+        async function toggleArchive() {
+            showArchived = !showArchived;
+            loadChats();
+        }
+
+        async function archiveChat(chatKey) {
+            try {
+                await fetch('/api/archive/' + encodeURIComponent(chatKey), { method: 'POST', headers: hdrs() });
+                toast('Чат архивирован', 'ok');
+                loadChats();
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        async function unarchiveChat(chatKey) {
+            try {
+                await fetch('/api/archive/' + encodeURIComponent(chatKey), { method: 'DELETE', headers: hdrs() });
+                loadChats();
+            } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        /* ════════════════════════════════════════
+           DRAFTS
+        ════════════════════════════════════════ */
+        function getDraftKey() {
+            if (!chatWith) return null;
+            return 'draft_' + (chatWith.isGroup ? chatWith.chatKey : chatWith.username);
+        }
+
+        function saveDraft() {
+            const key = getDraftKey();
+            if (!key) return;
+            const text = document.getElementById('minp').value;
+            if (text.trim()) localStorage.setItem(key, text);
+            else localStorage.removeItem(key);
+        }
+
+        function loadDraft() {
+            const key = getDraftKey();
+            if (!key) return;
+            const text = localStorage.getItem(key) || '';
+            document.getElementById('minp').value = text;
+            autoH(document.getElementById('minp'));
+        }
+
+        /* ── Draft autosave on input */
+        document.addEventListener('input', e => {
+            if (e.target.id === 'minp') {
+                clearTimeout(e.target._draftTid);
+                e.target._draftTid = setTimeout(saveDraft, 500);
+            }
+        });
+
+        /* ════════════════════════════════════════
+           SAVED MESSAGES
+        ════════════════════════════════════════ */
+        function openSavedMessages() {
+            const key = [me.username, me.username].sort().join(':');
+            openChat({ username: me.username, displayname: 'Избранное', chatKey: key, isSaved: true });
+        }
+
+        /* ════════════════════════════════════════
+           GLOBAL SEARCH
+        ════════════════════════════════════════ */
+        let globalSearchMode = false;
+
+        async function openGlobalSearch() {
+            globalSearchMode = true;
+            const inp = document.getElementById('sbox');
+            inp.placeholder = 'Поиск по всем чатам…';
+            inp.focus();
+        }
+
+        /* ════════════════════════════════════════
+           SAVED MESSAGES
+        ════════════════════════════════════════ */
+        function openSavedMessages() {
+            const key = [me.username, me.username].sort().join(':');
+            openChat({ username: me.username, displayname: 'Избранное', chatKey: key, isSaved: true });
+        }
     </script>
 </body>
 
