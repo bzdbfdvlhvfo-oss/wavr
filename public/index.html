@@ -3726,6 +3726,8 @@
             <div style="font-size:28px;font-weight:800;letter-spacing:-1px">Wavr</div>
             <span class="spin" style="width:28px;height:28px;border-width:3px"></span>
         </div>
+        <!-- Offline banner -->
+        <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:rgba(240,80,80,.95);color:#fff;text-align:center;padding:6px 16px;font-size:12px;font-weight:500;backdrop-filter:blur(8px)">Нет соединения. Переподключение…</div>
         <div class="layout">
 
             <!-- SIDEBAR -->
@@ -4335,6 +4337,7 @@
         const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const ft = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
         const fd = ts => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+        const fc = ts => { const now = Date.now(); const diff = now - ts; const d = new Date(ts); const today = new Date(now); today.setHours(0,0,0,0); if (ts > today.getTime()) return ft(ts); const yesterday = today.getTime() - 86400000; if (ts > yesterday) return 'Вчера'; if (now - ts < 7*86400000) return d.toLocaleDateString('ru-RU',{weekday:'short'}); return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'}); };
         const fsz = b => b < 1048576 ? (b / 1024).toFixed(0) + 'KB' : (b / 1048576).toFixed(1) + 'MB';
         const S = {
           pin: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg>',
@@ -5080,7 +5083,7 @@
                     const cprev = ci.querySelector('.cprev');
                     if (cprev) cprev.textContent = c.lastMessage || '';
                     const ctime = ci.querySelector('.ctime');
-                    if (ctime) ctime.textContent = c.lastTs ? ft(c.lastTs) : '';
+                    if (ctime) ctime.textContent = c.lastTs ? fc(c.lastTs) : '';
                     const badge = ci.querySelector('.badge');
                     if (c.unread) {
                         if (badge) { badge.textContent = c.unread > 99 ? '99+' : c.unread; }
@@ -5111,7 +5114,7 @@
                     const cprev = document.createElement('div'); cprev.className = 'cprev'; cprev.textContent = c.lastMessage || '';
                     cinf.appendChild(cname); cinf.appendChild(cprev);
                     const cmeta = document.createElement('div'); cmeta.className = 'cmeta';
-                    const ctime = document.createElement('div'); ctime.className = 'ctime'; ctime.textContent = c.lastTs ? ft(c.lastTs) : '';
+                    const ctime = document.createElement('div'); ctime.className = 'ctime'; ctime.textContent = c.lastTs ? fc(c.lastTs) : '';
                     cmeta.appendChild(ctime);
                     if (c.unread) {
                         const badge = document.createElement('div'); badge.className = 'badge';
@@ -7420,12 +7423,14 @@
 
             _ws.onopen = () => {
                 document.getElementById('csInd').classList.add('on');
+                document.getElementById('offlineBar').style.display = 'none';
                 _wsRetries = 0;
             };
 
             _ws.onclose = () => {
                 document.getElementById('csInd').classList.remove('on');
                 _ws = null;
+                if (_wsRetries >= 2) document.getElementById('offlineBar').style.display = 'block';
                 scheduleReconnect();
             };
 
