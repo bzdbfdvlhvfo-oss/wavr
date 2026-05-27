@@ -411,9 +411,7 @@
             left: 0;
             right: 0;
             height: 54px;
-            background: rgba(8, 8, 24, .85);
-            backdrop-filter: blur(28px);
-            -webkit-backdrop-filter: blur(28px);
+            background: rgba(8, 8, 24, .92);
             border-top: 1px solid rgba(255,255,255,.05);
             z-index: 50;
             justify-content: space-around;
@@ -455,14 +453,6 @@
         }
         .btab svg { display: block; margin: 0 auto; }
 
-        /* Ripple */
-        .ripple {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(124, 111, 247, .3);
-            pointer-events: none;
-            animation: rippleAnim .5s ease-out forwards;
-        }
         @keyframes rippleAnim {
             from { width: 0; height: 0; opacity: .5; }
             to { width: 200px; height: 200px; opacity: 0; margin: -100px 0 0 -100px; }
@@ -854,9 +844,7 @@
             display: flex;
             align-items: center;
             gap: 11px;
-            background: rgba(5, 5, 16, .78);
-            backdrop-filter: blur(28px);
-            -webkit-backdrop-filter: blur(28px);
+            background: rgba(5, 5, 16, .85);
             flex-shrink: 0;
             z-index: 10;
             box-shadow: 0 1px 8px rgba(0,0,0,.25);
@@ -908,7 +896,6 @@
             font-family: 'DM Mono', monospace;
             letter-spacing: .04em;
             background: rgba(12, 12, 32, .85);
-            backdrop-filter: blur(8px);
             padding: 4px 16px;
             border-radius: 20px;
             border: 1px solid var(--br);
@@ -1144,7 +1131,7 @@
             background: #1c1c1e;
             border: 1px solid rgba(255,255,255,.04);
             border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 4px rgba(0,0,0,.2);
+            box-shadow: 0 1px 4px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.03);
         }
 
         .mw.me .bbl {
@@ -1369,7 +1356,6 @@
             touch-action: manipulation;
             transition: all .15s, transform .1s;
             box-shadow: 0 1px 3px rgba(0,0,0,.12);
-            backdrop-filter: blur(4px);
         }
 
         .rpill:hover {
@@ -1407,7 +1393,6 @@
             margin-bottom: 4px;
             cursor: pointer;
             transition: background .12s;
-            backdrop-filter: blur(4px);
         }
         .reply-quote:hover {
             background: rgba(124, 111, 247, .15);
@@ -1466,7 +1451,9 @@
 ══════════════════════════════════════════ */
         #epick {
             position: fixed;
-            background: var(--bg2);
+            background: rgba(10, 10, 28, .95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             border: 1px solid var(--br);
             border-radius: 18px;
             padding: 10px;
@@ -1543,6 +1530,7 @@
             color: var(--tx);
             transform: scale(1.06);
             border-color: var(--ac);
+            box-shadow: 0 4px 20px rgba(124,111,247,.2);
         }
         .scroll-down:active { transform: scale(.9); }
         .sdn {
@@ -1575,7 +1563,6 @@
             background: rgba(5,5,16,.6);
             border-bottom: 1px solid var(--br);
             flex-shrink: 0;
-            backdrop-filter: blur(12px);
         }
         .msg-search.show { display: flex; }
         .msg-search input {
@@ -1622,7 +1609,6 @@
             flex-shrink: 0;
             cursor: pointer;
             transition: background .15s;
-            backdrop-filter: blur(12px);
         }
         .pinbar.show { display: flex; animation: pinSlide .25s ease both; }
         @keyframes pinSlide { from { opacity: 0; margin-top: -32px; } to { opacity: 1; margin-top: 0; } }
@@ -1689,34 +1675,35 @@
         .typing-wrap {
             display: none;
             align-items: center;
-            gap: 4px;
-            padding: 6px 14px 2px;
+            gap: 6px;
+            padding: 5px 14px 2px;
             flex-shrink: 0;
         }
         .typing-wrap.show { display: flex; }
         .typing-dots {
             display: flex;
             align-items: center;
-            gap: 3px;
+            gap: 4px;
             padding: 4px 0;
         }
         .typing-dots span {
-            width: 6px;
-            height: 6px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
-            background: var(--t2);
+            background: var(--ac);
             animation: typingBounce 1.4s ease-in-out infinite;
         }
         .typing-dots span:nth-child(2) { animation-delay: .2s; }
         .typing-dots span:nth-child(3) { animation-delay: .4s; }
         @keyframes typingBounce {
-            0%, 60%, 100% { transform: translateY(0); opacity: .4; }
-            30% { transform: translateY(-6px); opacity: 1; }
+            0%, 60%, 100% { transform: translateY(0); opacity: .3; }
+            30% { transform: translateY(-7px); opacity: 1; }
         }
         .typing-label {
             font-size: 11px;
-            color: var(--t2);
+            color: var(--ac);
             font-style: italic;
+            font-weight: 500;
         }
 
         /* ══════════════════════════════════════════
@@ -1781,9 +1768,7 @@
             align-items: flex-end;
             gap: 9px;
             border-top: 1px solid rgba(255,255,255,.05);
-            background: rgba(8, 8, 24, .78);
-            backdrop-filter: blur(28px);
-            -webkit-backdrop-filter: blur(28px);
+            background: rgba(8, 8, 24, .88);
             flex-shrink: 0;
             min-height: 52px;
             box-shadow: 0 -1px 12px rgba(0,0,0,.15);
@@ -1805,9 +1790,9 @@
         }
 
         .minp:focus {
-            border-color: var(--br2);
+            border-color: var(--ac);
             background: rgba(124, 111, 247, .06);
-            box-shadow: 0 0 0 3px rgba(124, 111, 247, .08), inset 0 0 0 1px rgba(124, 111, 247, .12);
+            box-shadow: 0 0 0 3px rgba(124, 111, 247, .12), 0 0 16px rgba(124, 111, 247, .08);
         }
 
         .minp::placeholder {
@@ -1842,8 +1827,17 @@
             transition: opacity .2s;
         }
         .sbtn:hover {
-            transform: scale(1.06);
-            box-shadow: 0 6px 28px var(--ac-glow);
+            transform: scale(1.08);
+            box-shadow: 0 6px 28px var(--ac-glow), 0 0 12px rgba(124, 111, 247, .2);
+        }
+        .sbtn:active {
+            transform: scale(.92);
+        }
+        .sbtn svg {
+            transition: transform .2s;
+        }
+        .sbtn:hover svg {
+            transform: translateX(1px) scale(1.08);
         }
         .sbtn:hover::after { opacity: 1; }
         .sbtn:active {
@@ -2332,10 +2326,10 @@
             border: 1px solid var(--br);
             border-radius: 14px;
             padding: 4px;
-            box-shadow: 0 8px 48px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02), inset 0 1px 0 rgba(255,255,255,.03);
+            box-shadow: 0 12px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03), inset 0 1px 0 rgba(255,255,255,.04);
             opacity: 0;
             transform: scale(.92) translateY(-4px);
-            transition: opacity .1s, transform .1s cubic-bezier(.22, .9, .36, 1);
+            transition: opacity .12s, transform .12s cubic-bezier(.22, .9, .36, 1);
             pointer-events: none;
         }
         #ctxMenu.open {
@@ -2527,26 +2521,32 @@
             border-radius: 10px;
             cursor: pointer;
             border: 2px solid transparent;
-            transition: all .2s;
+            transition: all .2s cubic-bezier(.22, .9, .36, 1);
             position: relative;
             overflow: hidden;
             background: var(--t4);
         }
-        .wp-tile:hover { transform: scale(1.05); }
-        .wp-tile.on { border-color: var(--ac); box-shadow: 0 0 12px rgba(124,111,247,.3); }
+        .wp-tile:hover { transform: scale(1.06); box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+        .wp-tile:active { transform: scale(.95); }
+        .wp-tile.on { border-color: var(--ac); box-shadow: 0 0 16px rgba(124,111,247,.35), 0 4px 12px rgba(0,0,0,.3); }
         .wp-tile.on::after {
-            content: '✓';
+            content: '';
             position: absolute;
-            top: 3px; right: 4px;
-            font-size: 9px;
-            color: #fff;
+            top: 4px; right: 4px;
+            width: 16px; height: 16px;
             background: var(--ac);
-            width: 14px; height: 14px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
+            box-shadow: 0 0 8px rgba(124,111,247,.4);
+        }
+        .wp-tile.on::before {
+            content: '';
+            position: absolute;
+            top: 7px; right: 7px;
+            width: 6px; height: 3px;
+            border: solid #fff;
+            border-width: 0 0 2px 2px;
+            transform: rotate(-45deg);
+            z-index: 1;
         }
         .wp-tile-img {
             width: 100%;
@@ -3100,7 +3100,7 @@
 
         .admin-sinp {
             width: 100%;
-            padding: 9px 13px;
+            padding: 9px 13px 9px 34px;
             background: var(--bg2);
             border: 1px solid var(--br);
             border-radius: 9px;
@@ -3337,6 +3337,137 @@
         @media (min-width: 641px) {
             .bottab { display: none !important; }
         }
+
+        /* ══════════════════════════════════════════
+           ENHANCED ANIMATIONS & EFFECTS
+        ══════════════════════════════════════════ */
+        ::selection { background: rgba(124, 111, 247, .4); color: #fff; }
+
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 6px var(--ac-glow), 0 0 20px rgba(124, 111, 247, .15); }
+            50% { box-shadow: 0 0 12px var(--ac-glow), 0 0 40px rgba(124, 111, 247, .25); }
+        }
+        @keyframes breathe {
+            0%, 100% { opacity: .6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(.92); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes spinner {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Button glow on hover */
+        .bp:hover, .sbtn:hover, button.primary:hover {
+            animation: glowPulse 2s ease-in-out infinite;
+        }
+        /* Smooth focus ring */
+        input:focus, textarea:focus, .admin-sinp:focus {
+            border-color: var(--ac) !important;
+            box-shadow: 0 0 0 3px rgba(124, 111, 247, .15), 0 0 12px rgba(124, 111, 247, .08) !important;
+            transition: box-shadow .2s, border-color .2s;
+        }
+        /* Sidebar item active accent glow */
+        .ci.act {
+            box-shadow: 0 0 20px rgba(124, 111, 247, .08), 0 0 0 1px rgba(124, 111, 247, .25), inset 0 0 20px rgba(124, 111, 247, .03);
+        }
+        .ci:hover {
+            transform: translateX(2px);
+            transition: transform .12s, background .12s, box-shadow .12s;
+        }
+        /* Message hover enhance */
+        .mw:hover .bbl {
+            box-shadow: 0 4px 16px rgba(0,0,0,.25);
+            transition: box-shadow .2s;
+        }
+        /* Scrollbar fade on hover */
+        .marea:hover::-webkit-scrollbar-thumb, .clist:hover::-webkit-scrollbar-thumb {
+            background: var(--t3);
+            transition: background .3s;
+        }
+        .marea::-webkit-scrollbar-thumb, .clist::-webkit-scrollbar-thumb {
+            transition: background .3s;
+        }
+        /* Avatar hover glow */
+        .av:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 2px rgba(124, 111, 247, .3), 0 4px 14px rgba(0,0,0,.3);
+            transition: transform .2s, box-shadow .2s;
+        }
+        /* Badge pulse on new */
+        .badge.has-new {
+            animation: glowPulse 2.4s ease-in-out infinite;
+        }
+        /* Settings items slide up */
+        .sitem {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background .12s, transform .1s;
+            animation: slideUp .3s cubic-bezier(.22, .9, .36, 1) both;
+            animation-delay: calc(var(--i, 0) * 30ms);
+        }
+        .sitem:hover { background: rgba(124,111,247,.06); transform: translateX(3px); }
+        .sitem:active { transform: scale(.98); }
+        /* Context menu items */
+        .ctx-item {
+            transition: background .1s, transform .08s, box-shadow .1s;
+        }
+        .ctx-item:active {
+            transform: scale(.97);
+        }
+        /* Pinbar glass */
+        .pinbar.show {
+            animation: slideUp .25s cubic-bezier(.22, .9, .36, 1) both;
+        }
+        /* Modal scale entrance */
+        .mover.show, #pm.show, #um.show, #adminPanel.show, #settingsBox.show {
+            animation: scaleIn .2s cubic-bezier(.22, .9, .36, 1) both;
+        }
+        .modal {
+            animation: scaleIn .22s cubic-bezier(.22, .9, .36, 1) both;
+        }
+        /* Spinner animation */
+        .spin {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--br2);
+            border-top-color: var(--ac);
+            border-radius: 50%;
+            animation: spinner .6s linear infinite;
+        }
+        /* Upload bar glow */
+        .upbar {
+            box-shadow: 0 0 12px rgba(124, 111, 247, .2);
+        }
+        /* Separator gradient */
+        .dsep span {
+            background: rgba(10, 10, 30, .92);
+            backdrop-filter: blur(8px);
+            border-color: rgba(124, 111, 247, .1);
+        }
+        /* No chat logo breathe */
+        .nc-logo {
+            animation: breathe 3.2s ease-in-out infinite;
+        }
+        /* Toast enter */
+        .toast {
+            box-shadow: 0 8px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+        }
+        /* File slot hover */
+        .file-slot:hover {
+            background: rgba(124, 111, 247, .04);
+            border-color: rgba(124, 111, 247, .2);
+        }
     </style>
 </head>
 
@@ -3442,7 +3573,7 @@
                 <div id="sres"></div>
                 <div class="clabel">Чаты</div>
                 <div class="clist" id="clist">
-                    <div class="empty-list">Найдите кого-нибудь 💬</div>
+                    <div class="empty-list"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь</div>
                 </div>
             </div>
 
@@ -3484,27 +3615,27 @@
                 </div>
                 <div class="marea" id="marea">
                     <div class="empty-chat">
-                        <div class="eico">👋</div>
+                        <div class="eico"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
                         <div>Начните переписку!</div>
                     </div>
                 </div>
                 <!-- Scroll to bottom -->
-                <button class="scroll-down" id="scrollDown" style="display:none" onclick="scrollToBottom()"><span class="sdn"></span>⬇</button>
+                <button class="scroll-down" id="scrollDown" style="display:none" onclick="scrollToBottom()"><span class="sdn"></span><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
                 <!-- Message search -->
                 <div class="msg-search" id="msgSearch" style="display:none">
                     <input type="text" id="msgSearchInput" placeholder="Поиск в чате…" autocomplete="off">
                     <span class="msg-search-count" id="msgSearchCount"></span>
                     <div class="msg-search-nav">
-                        <button class="ib" id="msgSearchUp" title="Назад">▲</button>
-                        <button class="ib" id="msgSearchDown" title="Вперёд">▼</button>
+                        <button class="ib" id="msgSearchUp" title="Назад"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
+                        <button class="ib" id="msgSearchDown" title="Вперёд"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
                     </div>
-                    <button class="ib" id="msgSearchClose" title="Закрыть">✕</button>
+                    <button class="ib" id="msgSearchClose" title="Закрыть"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <!-- Pinned bar -->
                 <div class="pinbar" id="pinbar">
-                    <span class="pinbar-ico">📌</span>
-                    <span class="pinbar-text" id="pinbarText">Закреплённое сообщение</span>
-                    <button class="pinbar-close" id="pinbarClose" title="Открепить">✕</button>
+                    <span class="pinbar-ico"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg></span>
+                    <span class="pinbar-text" id="pinbarText"></span>
+                    <button class="pinbar-close" id="pinbarClose" title="Открепить"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <!-- Typing indicator -->
                 <div class="typing-wrap" id="typingWrap">
@@ -3516,13 +3647,13 @@
                         <span class="rbi-from" id="rbiFrom"></span>
                         <span class="rbi-text" id="rbiText"></span>
                     </div>
-                    <button class="rbi-cancel" onclick="cancelReply()" title="Отмена">✕</button>
+                    <button class="rbi-cancel" onclick="cancelReply()" title="Отмена"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <!-- Edit bar -->
                 <div class="edit-bar" id="editBar">
-                    <span class="edit-bar-label">✏️ Редактировать</span>
+                    <span class="edit-bar-label"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Редактировать</span>
                     <span class="edit-bar-text" id="editBarText"></span>
-                    <button class="edit-bar-cancel" onclick="cancelEdit()" title="Отмена">✕</button>
+                    <button class="edit-bar-cancel" onclick="cancelEdit()" title="Отмена"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div class="ibar">
                     <label class="mbtn" style="cursor:pointer" title="Фото/видео">
@@ -3579,11 +3710,11 @@
     <!-- File preview -->
     <div id="prevModal" style="display:none" class="mover" onclick="if(event.target===this)cancelPreview()">
         <div class="modal">
-            <button class="mcl" onclick="cancelPreview()">✕</button>
+            <button class="mcl" onclick="cancelPreview()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <div class="mtit">Отправить файл</div>
             <img id="prevThumb" src="" alt="" style="display:none" />
             <div id="prevFileBox" style="display:none">
-                <div id="prevFileIco">📎</div>
+                <div id="prevFileIco"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
                 <div>
                     <div id="prevFileName"></div>
                     <div id="prevFileSize"></div>
@@ -3600,39 +3731,39 @@
     <!-- Settings modal -->
     <div id="settingsModal" style="display:none" class="mover" onclick="if(event.target===this)closeSettings()">
         <div class="settings-box">
-            <button class="mcl" onclick="closeSettings()">✕</button>
+            <button class="mcl" onclick="closeSettings()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <h3 class="set-h">Настройки</h3>
             <div class="set-sub">Персонализируйте свой Wavr</div>
             <div class="set-section">Чат</div>
             <label class="set-row">
-                <span class="set-row-ico">⌨️</span>
+                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3"/><line x1="6" y1="8" x2="10" y2="8"/><line x1="6" y1="12" x2="14" y2="12"/><line x1="6" y1="16" x2="8" y2="16"/><line x1="15" y1="12" x2="18" y2="12"/><line x1="16" y1="9" x2="18" y2="12"/><line x1="16" y1="15" x2="18" y2="12"/></svg></span>
                 <span class="set-row-label">Отправка по Enter<span class="set-row-desc">Enter отправляет сообщение</span></span>
                 <input type="checkbox" id="setEnterSend" checked>
             </label>
             <div class="set-section">Уведомления</div>
             <label class="set-row">
-                <span class="set-row-ico">🔔</span>
+                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
                 <span class="set-row-label">Уведомления<span class="set-row-desc">Звук и всплывающие уведомления</span></span>
                 <input type="checkbox" id="setNotify" checked>
             </label>
             <label class="set-row">
-                <span class="set-row-ico">🟢</span>
+                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg></span>
                 <span class="set-row-label">Показывать онлайн<span class="set-row-desc">Другие видят, когда вы в сети</span></span>
                 <input type="checkbox" id="setOnline" checked>
             </label>
             <div class="set-section">Внешний вид</div>
             <div class="set-color-row">
-                <span class="set-row-ico">🎨</span>
+                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.5-1-.3-.3-.5-.6-.5-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-4.5-4.5-8-10-8z"/></svg></span>
                 <span class="set-row-label">Цвет акцента</span>
                 <input type="color" id="setAccent" value="#7c6ff7">
             </div>
             <div class="set-section">Фон чата</div>
             <div class="wp-grid" id="wpGrid"></div>
             <div class="wp-custom">
-                <label class="wp-custom-btn">🖼 Своё изображение<input type="file" accept="image/*" id="wpFile" style="display:none"></label>
-                <button class="wp-custom-btn" id="wpReset">↺ Сбросить</button>
+                <label class="wp-custom-btn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Своё изображение<input type="file" accept="image/*" id="wpFile" style="display:none"></label>
+                <button class="wp-custom-btn" id="wpReset"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Сбросить</button>
             </div>
-            <button class="set-install" id="setInstallBtn" onclick="installApp()">📲 Установить приложение</button>
+            <button class="set-install" id="setInstallBtn" onclick="installApp()"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Установить приложение</button>
             <div class="set-info">Wavr v1.0</div>
         </div>
     </div>
@@ -3640,7 +3771,7 @@
     <!-- Confirm dialog -->
     <div id="confirmDlg">
         <div class="cdlg-box">
-            <div class="cdlg-ico" id="cdlgIco">⚠️</div>
+            <div class="cdlg-ico" id="cdlgIco"><svg width="28" height="28" fill="none" stroke="var(--rd)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
             <div class="cdlg-msg" id="cdlgMsg"></div>
             <div class="cdlg-btns">
                 <button class="cdlg-no" id="cdlgNo" onclick="cdlgResolve(false)">Отмена</button>
@@ -3653,14 +3784,14 @@
     <!-- Profile modal -->
     <div id="pm" style="display:none" class="mover" onclick="if(event.target===this)closePM()">
         <div class="modal">
-            <button class="pm-close" onclick="closePM()">✕</button>
+            <button class="pm-close" onclick="closePM()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <div class="pm-header">
                 <div class="pm-av-wrap">
                     <div class="avup av-0" id="pmav" onclick="document.getElementById('avinp').click()">
-                        <div class="avup-overlay">📷</div>
+                        <div class="avup-overlay"><svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
                         <input type="file" accept="image/*" id="avinp" onchange="onAvChange(event)" />
                     </div>
-                    <div class="pm-av-badge">✏️</div>
+                    <div class="pm-av-badge"><svg width="12" height="12" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
                 </div>
                 <div class="pm-name" id="pmDn">—</div>
                 <div class="pm-tag" id="pmTag">@—</div>
@@ -3668,8 +3799,8 @@
             </div>
             <div class="pm-body">
                 <div class="pm-tabs">
-                    <button class="pm-tab on" onclick="profTab('edit')">✏️ Профиль</button>
-                    <button class="pm-tab" onclick="profTab('sessions')">🔐 Сессии</button>
+                    <button class="pm-tab on" onclick="profTab('edit')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль</button>
+                    <button class="pm-tab" onclick="profTab('sessions')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Сессии</button>
                 </div>
                 <div id="pmEdit">
                     <div class="pm-stats" id="pmStats" style="display:none">
@@ -3712,7 +3843,7 @@
     <!-- User info modal -->
     <div id="um" style="display:none" class="mover" onclick="if(event.target===this)closeUM()">
         <div class="modal">
-            <button class="pm-close" onclick="closeUM()">✕</button>
+            <button class="pm-close" onclick="closeUM()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <div class="um-head">
                 <div class="av" id="umav" style="width:72px;height:72px;min-width:72px;font-size:24px;margin:0 auto 14px;
                border:3px solid rgba(124,111,247,.4);
@@ -3723,35 +3854,35 @@
             </div>
             <div class="um-body">
                 <div id="umbio-row" class="um-info-row" style="display:none">
-                    <div class="um-info-ico">💬</div>
+                    <div class="um-info-ico"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                     <div>
                         <div class="um-info-val" id="umbio"></div>
                         <div class="um-info-key">О себе</div>
                     </div>
                 </div>
                 <div class="um-info-row">
-                    <div class="um-info-ico">🆔</div>
+                    <div class="um-info-ico"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M6 19c0-3 2.5-5 6-5s6 2 6 5"/></svg></div>
                     <div>
                         <div class="um-info-val" id="umun2" style="font-family:'DM Mono',monospace;font-size:13px">
                         </div>
                         <div class="um-info-key">Username</div>
                     </div>
                 </div>
-                <button class="um-msg-btn" id="umMsgBtn">✉️ Написать сообщение</button>
-                <button class="um-msg-btn" id="umBlockBtn" style="margin-top:8px;background:rgba(240,80,80,.1);color:var(--rd);border:1px solid rgba(240,80,80,.2)">🚫 Заблокировать</button>
+                <button class="um-msg-btn" id="umMsgBtn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Написать сообщение</button>
+                <button class="um-msg-btn" id="umBlockBtn" style="margin-top:8px;background:rgba(240,80,80,.1);color:var(--rd);border:1px solid rgba(240,80,80,.2)"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Заблокировать</button>
             </div>
         </div>
     </div>
 
     <!-- Context menu -->
     <div id="ctxMenu">
-        <div class="ctx-item" id="ctx-reply"><span class="ctx-ico">↩️</span> Ответить</div>
-        <div class="ctx-item" id="ctx-react"><span class="ctx-ico">😊</span> Реакция</div>
-        <div class="ctx-item" id="ctx-copy"><span class="ctx-ico">📋</span> Копировать</div>
-        <div class="ctx-item" id="ctx-edit"><span class="ctx-ico">✏️</span> Редактировать</div>
-        <div class="ctx-item" id="ctx-pin"><span class="ctx-ico">📌</span> Закрепить</div>
+        <div class="ctx-item" id="ctx-reply"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></span> Ответить</div>
+        <div class="ctx-item" id="ctx-react"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></span> Реакция</div>
+        <div class="ctx-item" id="ctx-copy"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span> Копировать</div>
+        <div class="ctx-item" id="ctx-edit"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span> Редактировать</div>
+        <div class="ctx-item" id="ctx-pin"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg></span> Закрепить</div>
         <div class="ctx-sep"></div>
-        <div class="ctx-item dng" id="ctx-del"><span class="ctx-ico">🗑</span> Удалить</div>
+        <div class="ctx-item dng" id="ctx-del"><span class="ctx-ico"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></span> Удалить</div>
     </div>
 
     <!-- Toast -->
@@ -3760,9 +3891,9 @@
     <!-- Admin panel -->
     <div id="adminPanel" style="display:none" class="mover" onclick="if(event.target===this)closeAdmin()">
         <div class="admin-modal">
-            <button class="mcl" onclick="closeAdmin()">✕</button>
+            <button class="mcl" onclick="closeAdmin()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <div class="admin-head">
-                <div class="admin-title">⚡ Панель владельца</div>
+                <div class="admin-title"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px;color:var(--ac)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Панель владельца</div>
                 <div class="admin-stats">
                     <div class="astat">
                         <div class="astat-n" id="as-users">—</div>
@@ -3782,8 +3913,9 @@
                     </div>
                 </div>
             </div>
-            <div class="admin-search">
-                <input class="admin-sinp" id="adminSearch" placeholder="🔍 Поиск…"
+            <div class="admin-search" style="position:relative">
+                <svg width="14" height="14" fill="none" stroke="var(--t3)" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input class="admin-sinp" id="adminSearch" placeholder="Поиск…"
                     oninput="filterAdminUsers(this.value)" />
             </div>
             <div class="admin-body" id="adminBody">
@@ -3794,7 +3926,7 @@
 
     <!-- Lightbox -->
     <div id="lb" onclick="if(event.target===this)closeLB()">
-        <button class="lbcl" onclick="closeLB()">✕</button>
+        <button class="lbcl" onclick="closeLB()"><svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         <div id="lbcont"></div>
     </div>
 
@@ -3836,6 +3968,46 @@
         const ft = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
         const fd = ts => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
         const fsz = b => b < 1048576 ? (b / 1024).toFixed(0) + 'KB' : (b / 1048576).toFixed(1) + 'MB';
+        const S = {
+          pin: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg>',
+          trash: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+          camera: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+          video: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+          file: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+          search: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+          lock: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+          chat: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+          wave: '<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+          block: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+          unblock: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+          crown: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M3 20h18"/></svg>',
+          boot: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 11V4h16v7"/><path d="M4 11h16v9H4z"/><path d="M8 15h8"/></svg>',
+          bomb: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="14" r="8"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/><path d="M14 4l3-3 2 2 3-3"/></svg>',
+          mobile: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+          monitor: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+          apple: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 7c-1-2-3-3-3-3s1-1 2 0c1 1 2 2 1 3z"/><path d="M17 11c0-3-2-5-5-5S7 8 7 11c0 4 2 7 5 7s5-3 5-7z"/></svg>',
+          warning: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+          mail: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+          check: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+          arrowUp: '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>',
+          arrowDown: '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>',
+          img: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+          pdf: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M12 12v6"/></svg>',
+          doc: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+          sheet: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>',
+          zip: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13v-2l3 3v-2"/><circle cx="11" cy="17" r="1"/></svg>',
+          audio: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+        };
+        function fileSvg(ext) {
+          const m = { pdf: S.pdf, doc: S.doc, docx: S.doc, xls: S.sheet, xlsx: S.sheet, zip: S.zip, rar: S.zip, mp3: S.audio, wav: S.audio, mp4: S.video, webm: S.video, mov: S.video };
+          return m[ext] || S.file;
+        }
+        function deviceSvg(ua) {
+          if (/Mobile|Android|iPhone|iPad/i.test(ua)) return S.mobile;
+          if (/Windows/i.test(ua)) return S.monitor;
+          if (/Mac/i.test(ua)) return S.apple;
+          return S.monitor;
+        }
         const hdrs = () => ({ 'Content-Type': 'application/json', 'x-token': token || '' });
 
         /** Set avatar element: color class + content */
@@ -3859,7 +4031,7 @@
             const w = document.getElementById('toast-wrap');
             const t = document.createElement('div');
             t.className = `toast ${type}`;
-            t.innerHTML = `<span>${type === 'ok' ? '✓' : '✕'}</span><span>${esc(msg)}</span>`;
+            t.innerHTML = `<span>${type === 'ok' ? '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'}</span><span>${esc(msg)}</span>`;
             w.appendChild(t);
             setTimeout(() => {
                 t.style.transition = 'opacity .3s'; t.style.opacity = '0';
@@ -3873,12 +4045,12 @@
             document.getElementById('confirmDlg').classList.remove('show');
             if (_cdlgResolve) { _cdlgResolve(v); _cdlgResolve = null; }
         }
-        function wConfirm(msg, ico = '⚠️', dangerous = true) {
+        function wConfirm(msg, ico = S.warning, dangerous = true) {
             // Resolve any pending confirm first
             if (_cdlgResolve) { _cdlgResolve(false); _cdlgResolve = null; }
             return new Promise(res => {
                 document.getElementById('cdlgMsg').textContent = msg;
-                document.getElementById('cdlgIco').textContent = ico;
+                document.getElementById('cdlgIco').innerHTML = ico;
                 document.getElementById('cdlgEveryone').style.display = 'none';
                 const yes = document.getElementById('cdlgYes');
                 yes.className = 'cdlg-yes' + (dangerous ? '' : ' safe');
@@ -3888,12 +4060,12 @@
             });
         }
 
-        function delConfirm(msg, ico = '🗑️') {
+        function delConfirm(msg, ico = S.trash) {
             // Resolve any pending confirm first
             if (_cdlgResolve) { _cdlgResolve(false); _cdlgResolve = null; }
             return new Promise(res => {
                 document.getElementById('cdlgMsg').textContent = msg;
-                document.getElementById('cdlgIco').textContent = ico;
+                document.getElementById('cdlgIco').innerHTML = ico;
                 document.getElementById('cdlgYes').textContent = 'Для меня';
                 document.getElementById('cdlgYes').className = 'cdlg-yes';
                 document.getElementById('cdlgEveryone').style.display = '';
@@ -4222,7 +4394,7 @@
                 document.getElementById('adminBtn').style.display = (me.username === OWNER) ? 'flex' : 'none';
                 updatePMHeader();
                 closePM();
-                toast('Профиль сохранён ✓');
+                toast('Профиль сохранён <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"/></svg>');
             } catch (e) { el.textContent = e.message; }
         }
 
@@ -4238,7 +4410,7 @@
                 }
                 d.sessions.forEach(s => {
                     const ua = s.user_agent || '';
-                    const ico = /Mobile|Android|iPhone|iPad/i.test(ua) ? '📱' : /Windows/i.test(ua) ? '💻' : /Mac/i.test(ua) ? '🍎' : '🖥️';
+                    const ico = deviceSvg(ua);
                     const br = /Chrome/i.test(ua) ? 'Chrome' : /Firefox/i.test(ua) ? 'Firefox' : /Safari/i.test(ua) ? 'Safari' : 'Браузер';
                     const div = document.createElement('div');
                     div.className = 'sess-item' + (s.is_current ? ' current' : '');
@@ -4249,7 +4421,7 @@
           <div class="sess-ua">${esc(br)}${s.is_current ? ' <span style="color:var(--ac);font-size:10px">● текущая</span>' : ''}</div>
           <div class="sess-time">Активно: ${timeAgo(s.last_seen)} · <span style="font-family:monospace;opacity:.5">${tokenShort}</span></div>
         </div>
-        ${!s.is_current ? `<button class="sess-del" data-token="${esc(s.token)}" title="Завершить">✕</button>` : ''}
+        ${!s.is_current ? `<button class="sess-del" data-token="${esc(s.token)}" title="Завершить"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
       `;
                     wrap.appendChild(div);
                 });
@@ -4270,7 +4442,7 @@
         }
 
         async function revokeOtherSessions() {
-            const ok2 = await wConfirm('Выйти на всех других устройствах?', '🔐', false);
+            const ok2 = await wConfirm('Выйти на всех других устройствах?', S.lock, false);
             if (!ok2) return;
             try {
                 const r = await fetch('/api/sessions/revoke-others', { method: 'POST', headers: hdrs() });
@@ -4309,13 +4481,13 @@
                     const isBlocked = bd.blocked?.some(b => b.username === un);
                     const bb = document.getElementById('umBlockBtn');
                     if (isBlocked) {
-                        bb.textContent = '✅ Разблокировать';
+                        bb.innerHTML = S.unblock + ' Разблокировать';
                         bb.style.background = 'rgba(80,200,120,.1)'; bb.style.color = '#50c878'; bb.style.borderColor = 'rgba(80,200,120,.2)';
                         bb.onclick = async () => {
                             try { await fetch(`/api/unblock/${un}`, { method: 'POST', headers: hdrs() }); toast('Разблокирован'); closeUM(); } catch (e) { }
                         };
                     } else {
-                        bb.textContent = '🚫 Заблокировать';
+                        bb.innerHTML = S.block + ' Заблокировать';
                         bb.style.background = 'rgba(240,80,80,.1)'; bb.style.color = 'var(--rd)'; bb.style.borderColor = 'rgba(240,80,80,.2)';
                         bb.onclick = async () => {
                             try { await fetch(`/api/block/${un}`, { method: 'POST', headers: hdrs() }); toast('Заблокирован'); closeUM(); } catch (e) { }
@@ -4442,7 +4614,7 @@
             t.className = 'toast ok';
             t.style.cssText = 'cursor:pointer;pointer-events:all;max-width:260px;';
             const preview = text.length > 40 ? text.slice(0, 40) + '…' : text;
-            t.innerHTML = `<span>💬</span><div><div style="font-weight:700;font-size:12px">${esc(from)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
+            t.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><div><div style="font-weight:700;font-size:12px">${esc(from)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
             t.addEventListener('click', function () {
                 try {
                     const list = JSON.parse(_lastChatsJson || '[]');
@@ -4464,7 +4636,7 @@
             if (!list.length) {
                 const div = document.createElement('div');
                 div.className = 'empty-list';
-                div.innerHTML = 'Найдите кого-нибудь 💬<br><span style="font-size:12px">Используйте поиск выше</span>';
+                div.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t3);font-size:13px"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="display:block;margin:0 auto 8px;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь<br><span style="font-size:12px">Используйте поиск выше</span></div>';
                 el.appendChild(div); return;
             }
             list.forEach((c, idx) => {
@@ -4667,7 +4839,7 @@
                     renderAll(msgs);
                 } else {
                     const a = document.getElementById('marea');
-                    a.innerHTML = '<div class="empty-chat"><div class="eico">👋</div><div>Начните переписку!</div></div>';
+                    a.innerHTML = '<div class="empty-chat"><div class="eico"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div>Начните переписку!</div></div>';
                 }
             } catch (e) { if (e.status === 401) throw e; }
         }
@@ -4960,7 +5132,7 @@
             } else if (m.type === 'image') {
                 const bbl = document.createElement('div'); bbl.className = 'bbl'; bbl.style.padding = '5px';
                 const slot = document.createElement('div'); slot.className = 'img-slot';
-                slot.innerHTML = '<span style="opacity:.3">🖼</span>';
+                slot.innerHTML = '<span style="opacity:.3">' + S.img + '</span>';
                 bbl.appendChild(slot); bodyInner.appendChild(bbl);
 
             } else if (m.type === 'video') {
@@ -4970,10 +5142,9 @@
 
             } else if (m.type === 'file') {
                 const ext = (m.file_name || '').split('.').pop().toLowerCase();
-                const ico = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', zip: '🗜️', rar: '🗜️', mp3: '🎵', wav: '🎵' }[ext] || '📎';
                 const bbl = document.createElement('div'); bbl.className = 'bbl'; bbl.style.padding = '6px';
                 const mf = document.createElement('div'); mf.className = 'msg-file file-slot'; mf.style.cursor = 'pointer';
-                const fi = document.createElement('div'); fi.className = 'file-ico'; fi.textContent = ico;
+                const fi = document.createElement('div'); fi.className = 'file-ico'; fi.innerHTML = fileSvg(ext);
                 const finf = document.createElement('div'); finf.className = 'file-info';
                 const fn = document.createElement('div'); fn.className = 'file-name'; fn.textContent = m.file_name || 'Файл';
                 const fz = document.createElement('div'); fz.className = 'file-sz'; fz.textContent = m.file_size ? fsz(m.file_size) : '';
@@ -5292,8 +5463,7 @@
             } else {
                 thumb.style.display = 'none'; fbox.style.display = 'flex';
                 const ext = f.name.split('.').pop().toLowerCase();
-                const ico = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', zip: '🗜️', rar: '🗜️', mp3: '🎵', wav: '🎵', mp4: '🎬', webm: '🎬', mov: '🎬' }[ext] || '📎';
-                document.getElementById('prevFileIco').textContent = ico;
+                document.getElementById('prevFileIco').innerHTML = fileSvg(ext);
                 document.getElementById('prevFileName').textContent = f.name;
                 document.getElementById('prevFileSize').textContent = fsz(f.size);
             }
@@ -5615,7 +5785,7 @@
            DELETE
         ════════════════════════════════════════ */
         async function delMsg(id) {
-            const action = await delConfirm('Удалить сообщение?', '🗑️');
+            const action = await delConfirm('Удалить сообщение?', S.trash);
             if (!action) return;
             const everyone = action === 'everyone';
             try {
@@ -5643,7 +5813,7 @@
 
         async function delChat() {
             if (!chatWith) return;
-            const action = await delConfirm(`Удалить чат с ${chatWith.displayname}?`, '🗑️');
+            const action = await delConfirm(`Удалить чат с ${chatWith.displayname}?`, S.trash);
             if (!action) return;
             try {
                 const everyone = action === 'everyone';
@@ -5655,7 +5825,7 @@
         }
 
         async function delChatFrom(u) {
-            const action = await delConfirm('Удалить чат?', '🗑️');
+            const action = await delConfirm('Удалить чат?', S.trash);
             if (!action) return;
             try {
                 const everyone = action === 'everyone';
@@ -5723,7 +5893,7 @@
                 const inf = document.createElement('div'); inf.className = 'auser-inf';
                 const nm = document.createElement('div'); nm.className = 'auser-name';
                 nm.innerHTML = `${isOnline ? '<span class="online-dot"></span>' : ''}${esc(u.displayname)} <span style="color:var(--t2);font-size:10px;font-family:'DM Mono',monospace">@${esc(u.username)}</span>`;
-                if (isOwner) nm.innerHTML += ' <span class="owner-badge">👑 owner</span>';
+                if (isOwner) nm.innerHTML += ' <span class="owner-badge">' + S.crown + ' owner</span>';
                 if (isBanned) nm.innerHTML += ' <span class="banned-tag">BANNED</span>';
                 const meta = document.createElement('div'); meta.className = 'auser-meta';
                 meta.innerHTML = `${u.msg_count} сообщ · ${u.session_count} сессий · ${timeAgo(u.last_seen)}`;
@@ -5749,8 +5919,8 @@
 
         async function adminAction(action, username) {
             const labels = { kick: 'кикнуть', ban: 'забанить', unban: 'разбанить', delete: 'УДАЛИТЬ' };
-            const icos = { kick: '👢', ban: '🚫', unban: '✅', delete: '💣' };
-            const ok2 = await wConfirm(`${labels[action]} @${username}?`, icos[action] || '⚠️', action === 'delete' || action === 'ban');
+            const icos = { kick: S.boot, ban: S.block, unban: S.unblock, delete: S.bomb };
+            const ok2 = await wConfirm(`${labels[action]} @${username}?`, icos[action] || S.warning, action === 'delete' || action === 'ban');
             if (!ok2) return;
             try {
                 let r;
@@ -5789,20 +5959,6 @@
             document.getElementById('sbox').focus();
             document.getElementById('sres').style.display = '';
         }
-
-        document.addEventListener('click', function(e) {
-            let el = e.target.closest('.bp, .ib, .mbtn, .sbtn, .btab, .ci, .atab, .ctx-item');
-            if (!el) return;
-            const rect = el.getBoundingClientRect();
-            const r = document.createElement('span');
-            r.className = 'ripple';
-            r.style.left = (e.clientX - rect.left) + 'px';
-            r.style.top = (e.clientY - rect.top) + 'px';
-            if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-            if (getComputedStyle(el).overflow !== 'hidden') el.style.overflow = 'hidden';
-            el.appendChild(r);
-            setTimeout(() => r.remove(), 500);
-        });
 
         /* ════════════════════════════════════════
            PUSH NOTIFICATIONS
@@ -5991,7 +6147,7 @@
                                 }
                             }
                         }
-                        toast('Изменено ✓');
+                        toast('Изменено ' + S.check + '');
                     } else { toast(d.error || 'Ошибка', 'err'); }
                 } catch (e) { toast('Ошибка', 'err'); }
                 _sendingMsg = false;
@@ -6022,7 +6178,7 @@
                         }
                         document.getElementById('pinbarText').textContent = pinText;
                         document.getElementById('pinbar').classList.add('show');
-                        toast('Закреплено 📌');
+                        toast('Закреплено ' + S.pin + '');
                     } else {
                         // Unpinned
                         const mw = document.querySelector(`[data-id="${msgId}"]`);
@@ -6077,7 +6233,7 @@
             document.getElementById('ctx-pin').style.display = isDeleted ? 'none' : 'flex';
             const isPinned = mw.classList.contains('pinned');
             const pinSpan = document.getElementById('ctx-pin').querySelector('span');
-            pinSpan.textContent = '📌';
+            pinSpan.innerHTML = S.pin;
             const pinLabel = pinSpan.nextSibling;
             if (pinLabel) pinLabel.textContent = isPinned ? ' Открепить' : ' Закрепить';
 
@@ -6112,8 +6268,8 @@
             const bbl = mw.querySelector('.bbl');
             let preview = bbl ? bbl.textContent.trim().slice(0, 80) : '';
             if (!preview) {
-                if (mw.querySelector('img')) preview = '📷 Фото';
-                else if (mw.querySelector('video')) preview = '🎬 Видео';
+                if (mw.querySelector('img')) preview = 'Фото';
+                else if (mw.querySelector('video')) preview = 'Видео';
             }
             startReply(parseInt(_ctxMsgId), fromName, preview);
             closeCtxMenu();
@@ -6214,8 +6370,8 @@
                 _pinnedMsgId = pinMsg2.id;
                 const mw = document.querySelector(`[data-id="${pinMsg2.id}"]`);
                 if (mw) mw.classList.add('pinned');
-                let pinText = pinMsg2.type === 'image' ? '📷 Фото' : pinMsg2.type === 'video' ? '🎬 Видео' :
-                    pinMsg2.type === 'file' ? '📎 Файл' : (pinMsg2.text || '').slice(0, 60);
+                let pinText = pinMsg2.type === 'image' ? S.camera + ' Фото' : pinMsg2.type === 'video' ? S.video + ' Видео' :
+                    pinMsg2.type === 'file' ? S.file + ' Файл' : (pinMsg2.text || '').slice(0, 60);
                 document.getElementById('pinbarText').textContent = pinText;
                 document.getElementById('pinbar').classList.add('show');
             }
