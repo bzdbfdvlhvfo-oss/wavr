@@ -7973,26 +7973,6 @@
             const key = [me.username, me.username].sort().join(':');
             openChat({ username: me.username, displayname: 'Избранное', chatKey: key, isSaved: true });
         }
-
-        /* ════════════════════════════════════════
-           GLOBAL SEARCH
-        ════════════════════════════════════════ */
-        let globalSearchMode = false;
-
-        async function openGlobalSearch() {
-            globalSearchMode = true;
-            const inp = document.getElementById('sbox');
-            inp.placeholder = 'Поиск по всем чатам…';
-            inp.focus();
-        }
-
-        /* ════════════════════════════════════════
-           SAVED MESSAGES
-        ════════════════════════════════════════ */
-        function openSavedMessages() {
-            const key = [me.username, me.username].sort().join(':');
-            openChat({ username: me.username, displayname: 'Избранное', chatKey: key, isSaved: true });
-        }
     </script>
 </body>
 

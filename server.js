@@ -13,6 +13,11 @@ const xss = require('xss');
 const app = express();
 const server = http.createServer(app);
 
+// Prevent unhandled rejections from crashing the process
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason?.message || reason);
+});
+
 app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -558,7 +563,7 @@ app.post('/api/send', auth, async (req, res) => {
         }
       }
     } else {
-      wsPushToChat(key, '', payload);
+      wsPushToChat(key, '', payload).catch(() => {});
     }
     ok(res, { ok: true, id: parseInt(msgRow.id), ts: parseInt(msgRow.ts) });
   } catch (e) { err(res, e.message, 500); }
@@ -611,7 +616,7 @@ app.post('/api/react', auth, async (req, res) => {
     }
     await pool.query('UPDATE messages SET reactions=$1 WHERE id=$2', [JSON.stringify(reactions), id]);
     // Broadcast reaction via WS
-    wsPushToChat(key, req.username, { type: 'reaction', id: parseInt(id), reactions });
+    wsPushToChat(key, req.username, { type: 'reaction', id: parseInt(id), reactions }).catch(() => {});
     ok(res, { ok: true, reactions });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -656,10 +661,10 @@ app.delete('/api/message/:id', auth, async (req, res) => {
     const key = r.rows[0].chat_key;
     if (everyone) {
       await pool.query('DELETE FROM messages WHERE id=$1', [req.params.id]);
-      wsPushToChat(key, req.username, { type: 'delete', id: parseInt(req.params.id), everyone: true });
+      wsPushToChat(key, req.username, { type: 'delete', id: parseInt(req.params.id), everyone: true }).catch(() => {});
     } else {
       await pool.query('UPDATE messages SET deleted=TRUE,text=$1 WHERE id=$2', ['Сообщение удалено', req.params.id]);
-      wsPushToChat(key, req.username, { type: 'delete', id: parseInt(req.params.id), everyone: false });
+      wsPushToChat(key, req.username, { type: 'delete', id: parseInt(req.params.id), everyone: false }).catch(() => {});
     }
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
@@ -677,7 +682,7 @@ app.patch('/api/message/:id', auth, async (req, res) => {
     const newText = sanitize(text.trim());
     await pool.query('UPDATE messages SET text=$1,edited=TRUE WHERE id=$2', [newText, req.params.id]);
     const key = r.rows[0].chat_key;
-    wsPushToChat(key, req.username, { type: 'edit', id: parseInt(req.params.id), text: newText });
+    wsPushToChat(key, req.username, { type: 'edit', id: parseInt(req.params.id), text: newText }).catch(() => {});
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -748,7 +753,7 @@ app.post('/api/forward', auth, async (req, res) => {
       fileSize: m.file_size || 0,
       isForward: true
     };
-    wsPushToChat(destKey, '', payload);
+    wsPushToChat(destKey, '', payload).catch(() => {});
     ok(res, { ok: true, id: parseInt(newMsg.id) });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -767,7 +772,7 @@ app.post('/api/pin/:id', auth, async (req, res) => {
     }
     await pool.query('UPDATE messages SET pinned=$1 WHERE id=$2', [!wasPinned, req.params.id]);
     const newPinned = !wasPinned;
-    wsPushToChat(r.rows[0].chat_key, req.username, { type: 'pin', id: parseInt(req.params.id), pinned: newPinned });
+    wsPushToChat(r.rows[0].chat_key, req.username, { type: 'pin', id: parseInt(req.params.id), pinned: newPinned }).catch(() => {});
     ok(res, { ok: true, pinned: newPinned });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1467,7 +1472,7 @@ app.post('/api/vote', auth, async (req, res) => {
       poll.votes[option].users.push(req.username);
     }
     await pool.query('UPDATE messages SET text=$1 WHERE id=$2', [JSON.stringify(poll), id]);
-    wsPushToChat(msg.rows[0].chat_key, req.username, { type: 'vote_update', id, poll });
+    wsPushToChat(msg.rows[0].chat_key, req.username, { type: 'vote_update', id, poll }).catch(() => {});
     ok(res, { ok: true, poll });
   } catch (e) { err(res, e.message, 500); }
 });
