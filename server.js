@@ -1,4 +1,5 @@
 const express = require('express');
+process.env.STARTED_AT = process.env.STARTED_AT || String(Math.floor(Date.now() / 1000));
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -852,6 +853,46 @@ app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
     const sess = await pool.query('SELECT COUNT(*) as c FROM sessions');
     const today = await pool.query('SELECT COUNT(*) as c FROM messages WHERE ts > $1', [Date.now() - 86400000]);
     ok(res, { users: parseInt(users.rows[0].c), messages: parseInt(msgs.rows[0].c), sessions: parseInt(sess.rows[0].c), today: parseInt(today.rows[0].c) });
+  } catch (e) { err(res, e.message, 500); }
+});
+app.post('/api/admin/broadcast', auth, adminOnly, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return err(res, 'Текст не может быть пустым', 400);
+    const users = await pool.query('SELECT username FROM users WHERE bio IS DISTINCT FROM $1', ['__BANNED__']);
+    let sent = 0;
+    const ts = Date.now();
+    for (const u of users.rows) {
+      await pool.query(
+        'INSERT INTO messages (from_user, to_user, content, type, ts, read) VALUES ($1,$2,$3,$4,$5,$6)',
+        [OWNER, u.username, text.trim(), 'text', ts, '0']
+      );
+      sent++;
+    }
+    ok(res, { ok: true, sent });
+  } catch (e) { err(res, e.message, 500); }
+});
+app.get('/api/admin/system', auth, adminOnly, async (req, res) => {
+  try {
+    const startedAt = process.env.STARTED_AT ? parseInt(process.env.STARTED_AT) : Math.floor(Date.now() / 1000);
+    const uptimeSec = Math.floor(process.uptime());
+    const d = Math.floor(uptimeSec / 86400);
+    const h = Math.floor((uptimeSec % 86400) / 3600);
+    const m = Math.floor((uptimeSec % 3600) / 60);
+    const s = uptimeSec % 60;
+    const uptimeStr = d > 0 ? `${d}д ${h}ч ${m}м ${s}с` : h > 0 ? `${h}ч ${m}м ${s}с` : `${m}м ${s}с`;
+    const mem = process.memoryUsage();
+    const memStr = (mem.rss / 1024 / 1024).toFixed(1) + ' MB RSS';
+    const sess = await pool.query('SELECT COUNT(*) as c FROM sessions');
+    ok(res, {
+      version: process.env.npm_package_version || require('./package.json').version || '1.0.0',
+      node: process.version,
+      platform: process.platform + ' ' + process.arch,
+      uptime: uptimeStr,
+      started: new Date(startedAt * 1000).toLocaleString('ru-RU'),
+      memory: memStr,
+      sessions: parseInt(sess.rows[0].c)
+    });
   } catch (e) { err(res, e.message, 500); }
 });
 

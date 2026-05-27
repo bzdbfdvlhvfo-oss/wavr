@@ -45,6 +45,7 @@
             --marea-bg: radial-gradient(ellipse at 20% 0%, rgba(124, 111, 247, .06) 0%, transparent 50%),
                          radial-gradient(ellipse at 80% 0%, rgba(168, 85, 247, .035) 0%, transparent 45%),
                          radial-gradient(ellipse at 50% 100%, rgba(124, 111, 247, .03) 0%, transparent 40%);
+            --msg-fs: 15px;
         }
 
         /* ══════════════════════════════════════════
@@ -747,6 +748,9 @@
         .ci:active {
             transform: scale(.97);
         }
+        .clist.compact .ci { padding: 5px 10px; }
+        .clist.compact .cname { font-size: 12px; }
+        .clist.compact .cprev { font-size: 11px; }
 
         .cinf {
             flex: 1;
@@ -1119,7 +1123,7 @@
         .bbl {
             padding: 9px 15px;
             border-radius: 18px;
-            font-size: 15px;
+            font-size: var(--msg-fs, 15px);
             line-height: 1.45;
             word-break: break-word;
             white-space: pre-wrap;
@@ -1604,11 +1608,11 @@
             align-items: center;
             gap: 8px;
             padding: 7px 14px;
-            background: linear-gradient(135deg, rgba(124, 111, 247, .12) 0%, rgba(168, 85, 247, .08) 100%);
-            border-bottom: 1px solid rgba(124, 111, 247, .12);
+            background: linear-gradient(135deg, rgba(124,111,247,.12), rgba(168,85,247,.08));
+            border-bottom: 1px solid rgba(124,111,247,.12);
             flex-shrink: 0;
             cursor: pointer;
-            transition: background .15s;
+            contain: layout style;
         }
         .pinbar.show { display: flex; animation: pinSlide .25s ease both; }
         @keyframes pinSlide { from { opacity: 0; margin-top: -32px; } to { opacity: 1; margin-top: 0; } }
@@ -2487,6 +2491,20 @@
             cursor: pointer;
             flex-shrink: 0;
         }
+        .set-select {
+            background: var(--bg3);
+            border: 1px solid var(--br2);
+            border-radius: 9px;
+            color: var(--tx);
+            font-size: 12px;
+            padding: 6px 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+            font-family: inherit;
+            outline: none;
+            transition: border-color .15s;
+        }
+        .set-select:focus { border-color: var(--ac); }
         .set-install {
             margin: 12px 24px 0;
             padding: 11px;
@@ -2503,10 +2521,50 @@
         .set-info {
             text-align: center;
             font-size: 11px;
-            color: var(--t4);
-            margin-top: 16px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255,255,255,.04);
+            color: var(--t3);
+            margin: 16px 0 6px;
+        }
+
+        .set-swipe {
+            display: flex;
+            overflow: hidden;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .set-page {
+            min-width: 100%;
+            scroll-snap-align: start;
+            padding: 0 0 4px;
+        }
+
+        .set-dots {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            margin: 8px 0 12px;
+        }
+
+        .sdot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--br);
+            transition: all .2s;
+            cursor: pointer;
+        }
+
+        .sdot.act {
+            background: var(--ac);
+            box-shadow: 0 0 6px var(--ac-glow);
+            width: 10px;
+            border-radius: 3px;
+        }
+
+        @media (min-width: 600px) {
+            .set-dots { display: none; }
+            .set-swipe { display: block; overflow: visible; }
+            .set-page { min-width: 0; padding: 0; }
         }
 
         /* Wallpaper picker */
@@ -3115,6 +3173,94 @@
 
         .admin-sinp::placeholder {
             color: var(--t3);
+        }
+
+        .admin-tabs {
+            display: flex;
+            gap: 3px;
+            margin-top: 12px;
+            margin-bottom: 8px;
+        }
+
+        .atab {
+            padding: 7px 13px;
+            border-radius: 9px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--t2);
+            cursor: pointer;
+            transition: all .15s;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .atab:hover {
+            background: var(--bg2);
+            color: var(--tx);
+        }
+
+        .atab.act {
+            background: var(--acg);
+            color: #fff;
+            box-shadow: 0 2px 10px var(--ac-glow);
+        }
+
+        .admin-body.bc-pane {
+            padding: 18px 14px;
+        }
+
+        .bc-text {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            background: var(--bg2);
+            border: 1px solid var(--br);
+            border-radius: 11px;
+            color: var(--tx);
+            font-size: 13px;
+            resize: vertical;
+            transition: border-color .15s;
+        }
+
+        .bc-text:focus {
+            border-color: var(--ac);
+        }
+
+        .bc-send {
+            width: 100%;
+            padding: 12px;
+            background: var(--acg);
+            border: none;
+            border-radius: 11px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 10px;
+            box-shadow: 0 4px 16px var(--ac-glow);
+            transition: all .15s;
+            cursor: pointer;
+        }
+
+        .bc-send:active { opacity: .85; }
+
+        .sys-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--br);
+            font-size: 13px;
+        }
+
+        .sys-row:last-child { border-bottom: none; }
+
+        .sys-label { color: var(--t2); }
+        .sys-val { font-weight: 600; font-family: 'DM Mono', monospace; font-size: 12px; }
+
+        .bc-status {
+            font-size: 12px;
+            color: var(--t2);
+            margin-top: 8px;
+            text-align: center;
         }
 
         .admin-body {
@@ -3734,36 +3880,86 @@
             <button class="mcl" onclick="closeSettings()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <h3 class="set-h">Настройки</h3>
             <div class="set-sub">Персонализируйте свой Wavr</div>
-            <div class="set-section">Чат</div>
-            <label class="set-row">
-                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3"/><line x1="6" y1="8" x2="10" y2="8"/><line x1="6" y1="12" x2="14" y2="12"/><line x1="6" y1="16" x2="8" y2="16"/><line x1="15" y1="12" x2="18" y2="12"/><line x1="16" y1="9" x2="18" y2="12"/><line x1="16" y1="15" x2="18" y2="12"/></svg></span>
-                <span class="set-row-label">Отправка по Enter<span class="set-row-desc">Enter отправляет сообщение</span></span>
-                <input type="checkbox" id="setEnterSend" checked>
-            </label>
-            <div class="set-section">Уведомления</div>
-            <label class="set-row">
-                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
-                <span class="set-row-label">Уведомления<span class="set-row-desc">Звук и всплывающие уведомления</span></span>
-                <input type="checkbox" id="setNotify" checked>
-            </label>
-            <label class="set-row">
-                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg></span>
-                <span class="set-row-label">Показывать онлайн<span class="set-row-desc">Другие видят, когда вы в сети</span></span>
-                <input type="checkbox" id="setOnline" checked>
-            </label>
-            <div class="set-section">Внешний вид</div>
-            <div class="set-color-row">
-                <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.5-1-.3-.3-.5-.6-.5-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-4.5-4.5-8-10-8z"/></svg></span>
-                <span class="set-row-label">Цвет акцента</span>
-                <input type="color" id="setAccent" value="#7c6ff7">
+            <div class="set-dots" id="setDots">
+                <span class="sdot act"></span><span class="sdot"></span><span class="sdot"></span><span class="sdot"></span>
             </div>
-            <div class="set-section">Фон чата</div>
-            <div class="wp-grid" id="wpGrid"></div>
-            <div class="wp-custom">
-                <label class="wp-custom-btn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Своё изображение<input type="file" accept="image/*" id="wpFile" style="display:none"></label>
-                <button class="wp-custom-btn" id="wpReset"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Сбросить</button>
+            <div class="set-swipe" id="setSwipe">
+                <!-- Page 0: Чат -->
+                <div class="set-page">
+                    <div class="set-section">Чат</div>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3"/><line x1="6" y1="8" x2="10" y2="8"/><line x1="6" y1="12" x2="14" y2="12"/><line x1="6" y1="16" x2="8" y2="16"/><line x1="15" y1="12" x2="18" y2="12"/><line x1="16" y1="9" x2="18" y2="12"/><line x1="16" y1="15" x2="18" y2="12"/></svg></span>
+                        <span class="set-row-label">Отправка по Enter<span class="set-row-desc">Enter отправляет сообщение (Shift+Enter — новая строка)</span></span>
+                        <input type="checkbox" id="setEnterSend" checked>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M16 16v1a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-1"/><path d="M6 11c0-2.5 2-5 6-5s6 2.5 6 5v2c0 3-2 5-6 5s-6-2-6-5v-2z"/><path d="M12 3v2"/></svg></span>
+                        <span class="set-row-label">Отправка по Ctrl+Enter<span class="set-row-desc">Ctrl+Enter отправляет (когда Enter включён)</span></span>
+                        <input type="checkbox" id="setCtrlEnter" checked>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></span>
+                        <span class="set-row-label">Размер шрифта<span class="set-row-desc">Размер текста сообщений</span></span>
+                        <select id="setFontSize" class="set-select">
+                            <option value="13">Маленький</option>
+                            <option value="15" selected>Средний</option>
+                            <option value="17">Большой</option>
+                            <option value="19">Огромный</option>
+                        </select>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></span>
+                        <span class="set-row-label">Плотность списка чатов<span class="set-row-desc">Компактный или обычный список</span></span>
+                        <select id="setDensity" class="set-select">
+                            <option value="compact">Компактный</option>
+                            <option value="normal" selected>Обычный</option>
+                        </select>
+                    </label>
+                </div>
+                <!-- Page 1: Уведомления -->
+                <div class="set-page">
+                    <div class="set-section">Уведомления</div>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+                        <span class="set-row-label">Уведомления<span class="set-row-desc">Звук и всплывающие уведомления</span></span>
+                        <input type="checkbox" id="setNotify" checked>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg></span>
+                        <span class="set-row-label">Показывать онлайн<span class="set-row-desc">Другие видят, когда вы в сети</span></span>
+                        <input type="checkbox" id="setOnline" checked>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+                        <span class="set-row-label">Индикатор печати<span class="set-row-desc">Показывать, когда кто-то печатает</span></span>
+                        <input type="checkbox" id="setTypingInd" checked>
+                    </label>
+                    <label class="set-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+                        <span class="set-row-label">Авто-загрузка медиа<span class="set-row-desc">Автоматически загружать фото и видео</span></span>
+                        <input type="checkbox" id="setAutoMedia" checked>
+                    </label>
+                </div>
+                <!-- Page 2: Внешний вид -->
+                <div class="set-page">
+                    <div class="set-section">Внешний вид</div>
+                    <div class="set-color-row">
+                        <span class="set-row-ico"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.5-1-.3-.3-.5-.6-.5-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-4.5-4.5-8-10-8z"/></svg></span>
+                        <span class="set-row-label">Цвет акцента</span>
+                        <input type="color" id="setAccent" value="#7c6ff7">
+                    </div>
+                    <button class="set-install" id="setInstallBtn" onclick="installApp()"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Установить приложение</button>
+                </div>
+                <!-- Page 3: Фон чата -->
+                <div class="set-page">
+                    <div class="set-section">Фон чата</div>
+                    <div class="wp-grid" id="wpGrid"></div>
+                    <div class="wp-custom">
+                        <label class="wp-custom-btn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Своё изображение<input type="file" accept="image/*" id="wpFile" style="display:none"></label>
+                        <button class="wp-custom-btn" id="wpReset"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Сбросить</button>
+                    </div>
+                </div>
             </div>
-            <button class="set-install" id="setInstallBtn" onclick="installApp()"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Установить приложение</button>
             <div class="set-info">Wavr v1.0</div>
         </div>
     </div>
@@ -3894,7 +4090,13 @@
             <button class="mcl" onclick="closeAdmin()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             <div class="admin-head">
                 <div class="admin-title"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px;color:var(--ac)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Панель владельца</div>
-                <div class="admin-stats">
+                <div class="admin-tabs" id="adminTabs">
+                    <span class="atab act" data-tab="stats" onclick="switchAdminTab('stats')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="10"/></svg>Статистика</span>
+                    <span class="atab" data-tab="users" onclick="switchAdminTab('users')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Юзеры</span>
+                    <span class="atab" data-tab="broadcast" onclick="switchAdminTab('broadcast')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><polygon points="11 3 3 21 13 21 21 21 11 3"/><line x1="13" y1="13" x2="11" y2="21"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Рассылка</span>
+                    <span class="atab" data-tab="system" onclick="switchAdminTab('system')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Система</span>
+                </div>
+                <div class="admin-stats" id="adminStatsRow">
                     <div class="astat">
                         <div class="astat-n" id="as-users">—</div>
                         <div class="astat-l">Юзеры</div>
@@ -3913,7 +4115,7 @@
                     </div>
                 </div>
             </div>
-            <div class="admin-search" style="position:relative">
+            <div class="admin-search" id="adminSearchWrap" style="position:relative;display:none">
                 <svg width="14" height="14" fill="none" stroke="var(--t3)" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input class="admin-sinp" id="adminSearch" placeholder="Поиск…"
                     oninput="filterAdminUsers(this.value)" />
@@ -3997,6 +4199,8 @@
           sheet: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>',
           zip: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13v-2l3 3v-2"/><circle cx="11" cy="17" r="1"/></svg>',
           audio: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+          send: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+          send2: '<svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
         };
         function fileSvg(ext) {
           const m = { pdf: S.pdf, doc: S.doc, docx: S.doc, xls: S.sheet, xlsx: S.sheet, zip: S.zip, rar: S.zip, mp3: S.audio, wav: S.audio, mp4: S.video, webm: S.video, mov: S.video };
@@ -5215,7 +5419,7 @@
                 const slot = node.querySelector('.img-slot');
                 if (slot && !slot.querySelector('img')) {
                     const img = document.createElement('img');
-                    img.className = 'msg-img'; img.loading = 'lazy'; img.src = src; img.alt = '';
+                    img.className = 'msg-img'; img.loading = 'lazy'; img.decoding = 'async'; img.fetchPriority = 'high'; img.src = src; img.alt = '';
                     slot.innerHTML = ''; slot.appendChild(img);
                     img.addEventListener('click', () => openLB('img', src));
                 }
@@ -5223,7 +5427,7 @@
                 const slot = node.querySelector('.vid-slot');
                 if (slot && !slot.querySelector('video')) {
                     const v = document.createElement('video');
-                    v.className = 'msg-video'; v.src = src; v.controls = true; v.preload = 'metadata';
+                    v.className = 'msg-video'; v.src = src; v.controls = true; v.preload = 'metadata'; v.playsInline = true;
                     slot.appendChild(v);
                 }
             } else if (m.type === 'file') {
@@ -5644,23 +5848,80 @@
 
         function openSettings() {
             document.getElementById('settingsModal').style.display = 'flex';
+            document.getElementById('setSwipe').scrollLeft = 0;
+            document.querySelectorAll('.sdot').forEach((d, i) => d.classList.toggle('act', i === 0));
             document.getElementById('setEnterSend').checked = localStorage.getItem('wavr_enter') !== '0';
+            document.getElementById('setCtrlEnter').checked = localStorage.getItem('wavr_ctrl') !== '0';
+            document.getElementById('setFontSize').value = localStorage.getItem('wavr_font') || '15';
+            document.getElementById('setDensity').value = localStorage.getItem('wavr_density') || 'normal';
             document.getElementById('setNotify').checked = localStorage.getItem('wavr_notify') !== '0';
             document.getElementById('setOnline').checked = localStorage.getItem('wavr_online') !== '0';
+            document.getElementById('setTypingInd').checked = localStorage.getItem('wavr_typing') !== '0';
+            document.getElementById('setAutoMedia').checked = localStorage.getItem('wavr_media') !== '0';
             document.getElementById('setAccent').value = localStorage.getItem('wavr_accent') || '#7c6ff7';
             renderWallpapers();
+            initSetSwipe();
         }
         function closeSettings() {
             localStorage.setItem('wavr_enter', document.getElementById('setEnterSend').checked ? '1' : '0');
+            localStorage.setItem('wavr_ctrl', document.getElementById('setCtrlEnter').checked ? '1' : '0');
+            localStorage.setItem('wavr_font', document.getElementById('setFontSize').value);
+            localStorage.setItem('wavr_density', document.getElementById('setDensity').value);
             localStorage.setItem('wavr_notify', document.getElementById('setNotify').checked ? '1' : '0');
             localStorage.setItem('wavr_online', document.getElementById('setOnline').checked ? '1' : '0');
+            localStorage.setItem('wavr_typing', document.getElementById('setTypingInd').checked ? '1' : '0');
+            localStorage.setItem('wavr_media', document.getElementById('setAutoMedia').checked ? '1' : '0');
             localStorage.setItem('wavr_accent', document.getElementById('setAccent').value);
             applyAccent();
+            applySettings();
             document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        let _setSwipeInit = false, _setSwipePage = 0;
+        function initSetSwipe() {
+            _setSwipePage = 0;
+            if (_setSwipeInit) return;
+            _setSwipeInit = true;
+            const swipe = document.getElementById('setSwipe');
+            const dots = document.querySelectorAll('.sdot');
+            let _touchX = 0, _moving = 0;
+            swipe.addEventListener('touchstart', e => { _touchX = e.touches[0].clientX; _moving = 0; }, { passive: true });
+            swipe.addEventListener('touchmove', e => {
+                const dx = e.touches[0].clientX - _touchX;
+                if (Math.abs(dx) > 10) _moving = 1;
+            }, { passive: true });
+            swipe.addEventListener('touchend', e => {
+                if (!_moving) return;
+                const dx = e.changedTouches[0].clientX - _touchX;
+                const cw = swipe.clientWidth;
+                if (Math.abs(dx) > 50) {
+                    _setSwipePage = Math.max(0, Math.min(dots.length - 1, _setSwipePage + (dx < 0 ? 1 : -1)));
+                    swipe.scrollTo({ left: _setSwipePage * cw, behavior: 'smooth' });
+                    dots.forEach((d, i) => d.classList.toggle('act', i === _setSwipePage));
+                }
+            }, { passive: true });
+            dots.forEach((d, i) => d.addEventListener('click', () => {
+                _setSwipePage = i;
+                swipe.scrollTo({ left: i * swipe.clientWidth, behavior: 'smooth' });
+                dots.forEach((dd, j) => dd.classList.toggle('act', j === i));
+            }));
+        }
+        function applySettings() {
+            const fs = localStorage.getItem('wavr_font') || '15';
+            document.documentElement.style.setProperty('--msg-fs', fs + 'px');
+            const den = localStorage.getItem('wavr_density') || 'normal';
+            document.getElementById('clist').classList.toggle('compact', den === 'compact');
         }
         // Patch Enter handler for send mode
         document.addEventListener('keydown', e => {
             if (e.key === 'Enter' && !e.shiftKey && localStorage.getItem('wavr_enter') !== '0') {
+                const inp = document.getElementById('minp');
+                if (inp && document.activeElement === inp) {
+                    e.preventDefault();
+                    sendMsg();
+                }
+            }
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && localStorage.getItem('wavr_ctrl') !== '0') {
                 const inp = document.getElementById('minp');
                 if (inp && document.activeElement === inp) {
                     e.preventDefault();
@@ -5840,13 +6101,29 @@
         /* ════════════════════════════════════════
            ADMIN PANEL
         ════════════════════════════════════════ */
+        let _adminTab = 'stats';
         async function openAdmin() {
             if (!me || me.username !== OWNER) return;
-            document.getElementById('adminSearch').value = '';
             document.getElementById('adminPanel').style.display = 'flex';
-            loadAdminStats(); loadAdminUsers();
+            loadAdminStats();
+            switchAdminTab('stats');
         }
         function closeAdmin() { document.getElementById('adminPanel').style.display = 'none'; }
+
+        function switchAdminTab(tab) {
+            _adminTab = tab;
+            document.querySelectorAll('.atab').forEach(t => t.classList.toggle('act', t.dataset.tab === tab));
+            const searchWrap = document.getElementById('adminSearchWrap');
+            const statsRow = document.getElementById('adminStatsRow');
+            const body = document.getElementById('adminBody');
+            body.className = 'admin-body';
+            searchWrap.style.display = tab === 'users' ? '' : 'none';
+            statsRow.style.display = tab === 'stats' ? '' : 'none';
+            if (tab === 'stats') { loadAdminStats(); body.innerHTML = ''; }
+            else if (tab === 'users') { document.getElementById('adminSearch').value = ''; loadAdminUsers(); }
+            else if (tab === 'broadcast') { renderBroadcast(); }
+            else if (tab === 'system') { renderSystemInfo(); }
+        }
 
         async function loadAdminStats() {
             try {
@@ -5892,7 +6169,7 @@
                 av.textContent = ini(u.displayname);
                 const inf = document.createElement('div'); inf.className = 'auser-inf';
                 const nm = document.createElement('div'); nm.className = 'auser-name';
-                nm.innerHTML = `${isOnline ? '<span class="online-dot"></span>' : ''}${esc(u.displayname)} <span style="color:var(--t2);font-size:10px;font-family:'DM Mono',monospace">@${esc(u.username)}</span>`;
+                nm.innerHTML = `${isOnline ? '<span class="online-dot"></span>' : ''}${esc(u.displayname)} <span style="color:var(--t2);font-size:10px;font-family:\'DM Mono\',monospace">@${esc(u.username)}</span>`;
                 if (isOwner) nm.innerHTML += ' <span class="owner-badge">' + S.crown + ' owner</span>';
                 if (isBanned) nm.innerHTML += ' <span class="banned-tag">BANNED</span>';
                 const meta = document.createElement('div'); meta.className = 'auser-meta';
@@ -5930,6 +6207,60 @@
                 if (r.ok) { toast(`@${username} — ${labels[action]}`); loadAdminStats(); loadAdminUsers(); document.getElementById('adminSearch').value = ''; }
                 else toast(d.error || 'Ошибка', 'err');
             } catch (e) { toast('Сетевая ошибка', 'err'); }
+        }
+
+        function renderBroadcast() {
+            const body = document.getElementById('adminBody');
+            body.className = 'admin-body bc-pane';
+            body.innerHTML = '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--t1)">Текст рассылки</label>' +
+                '<textarea class="bc-text" id="bcText" placeholder="Напишите сообщение для всех пользователей…"></textarea>' +
+                '<button class="bc-send" id="bcSendBtn">' + S.send.replace('stroke-width="2"','stroke-width="2" style="vertical-align:middle;margin-right:5px"') + 'Отправить всем</button>' +
+                '<div class="bc-status" id="bcStatus"></div>';
+            document.getElementById('bcSendBtn').onclick = sendBroadcast;
+        }
+
+        async function sendBroadcast() {
+            const text = document.getElementById('bcText').value.trim();
+            if (!text) { toast('Введите текст', 'err'); return; }
+            const ok = await wConfirm('Отправить это сообщение <b>всем</b> пользователям?<br><span style="color:var(--t2);font-size:12px">Всего: ' + document.getElementById('as-users').textContent + ' юзеров</span>', S.send2, true);
+            if (!ok) return;
+            const btn = document.getElementById('bcSendBtn'); btn.disabled = true; btn.style.opacity = '.5';
+            const st = document.getElementById('bcStatus'); st.textContent = 'Отправка…';
+            try {
+                const r = await fetch('/api/admin/broadcast', {
+                    method: 'POST', headers: hdrs(),
+                    body: JSON.stringify({ text })
+                });
+                const d = await r.json();
+                if (r.ok) { st.innerHTML = '<span style="color:var(--gr)">✓ Отправлено ' + (d.sent || '—') + ' пользователям</span>'; }
+                else { st.innerHTML = '<span style="color:var(--rd)">' + (d.error || 'Ошибка') + '</span>'; toast(d.error || 'Ошибка', 'err'); }
+            } catch (e) { st.innerHTML = '<span style="color:var(--rd)">Сетевая ошибка</span>'; toast('Сетевая ошибка', 'err'); }
+            finally { btn.disabled = false; btn.style.opacity = ''; }
+        }
+
+        async function renderSystemInfo() {
+            const body = document.getElementById('adminBody');
+            body.className = 'admin-body';
+            body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3)"><span class="spin"></span></div>';
+            try {
+                const r = await fetch('/api/admin/system', { headers: hdrs() });
+                const d = await r.json();
+                if (!r.ok) { body.innerHTML = '<div style="color:var(--rd);padding:18px;text-align:center">' + (d.error || 'Ошибка') + '</div>'; return; }
+                const rows = [
+                    { label: 'Версия', val: d.version || '—' },
+                    { label: 'Node.js', val: d.node || '—' },
+                    { label: 'Платформа', val: d.platform || '—' },
+                    { label: 'Uptime', val: d.uptime || '—' },
+                    { label: 'Запущен', val: d.started || '—' },
+                    { label: 'Память', val: d.memory || '—' },
+                    { label: 'Активных сессий', val: d.sessions || '—' },
+                ];
+                body.innerHTML = rows.map(r =>
+                    '<div class="sys-row"><span class="sys-label">' + r.label + '</span><span class="sys-val">' + r.val + '</span></div>'
+                ).join('');
+            } catch (e) {
+                body.innerHTML = '<div style="color:var(--rd);padding:18px;text-align:center">Сетевая ошибка</div>';
+            }
         }
 
         /* ════════════════════════════════════════
@@ -6040,6 +6371,7 @@
         }
 
         function setTypingVisible(v, name) {
+            if (localStorage.getItem('wavr_typing') === '0' && v) return;
             const wrap = document.getElementById('typingWrap');
             if (!wrap) return;
             if (v === _typingVisible) return;
@@ -6385,6 +6717,7 @@
             _origEnterApp();
             applyAccent();
             applyWallpaper();
+            applySettings();
             startPing();
             setTimeout(requestPush, 3000);
         };
