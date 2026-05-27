@@ -5,3 +5,4 @@ android/
 *.log
 .idea/
 
+temp_check.js

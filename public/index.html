@@ -3624,6 +3624,21 @@
         .msg-voice-wave span:nth-child(even) { animation-delay:.1s; height:18px; }
         @keyframes vwav { 0%,100% { height:8px; } 50% { height:22px; } }
         .msg-voice-dur { font-size:11px; color:var(--t3); font-family:'DM Mono',monospace; }
+        .poll-bar { display:none; padding:12px 14px; background:var(--bg2); border-top:1px solid var(--br); }
+        .poll-bar.show { display:block; }
+        .poll-q { width:100%; background:var(--bg3); border:1px solid var(--br2); border-radius:10px; color:var(--tx); padding:8px 12px; font-size:14px; font-weight:600; margin-bottom:8px; }
+        .poll-q:focus, .poll-o:focus { border-color:var(--ac); }
+        .poll-o { width:100%; background:var(--bg3); border:1px solid var(--br2); border-radius:8px; color:var(--tx); padding:6px 10px; font-size:13px; margin:4px 0; }
+        .poll-add { background:var(--bg4); color:var(--ac); border-radius:8px; padding:4px 10px; font-size:12px; margin-top:4px; }
+        .poll-send-btn { flex:1; background:var(--ac); color:#fff; border-radius:8px; padding:7px; font-size:13px; font-weight:600; }
+        .poll-cancel-btn { flex:1; background:var(--bg4); color:var(--t2); border-radius:8px; padding:7px; font-size:13px; }
+        .voice-bar { display:none; align-items:center; gap:10px; padding:8px 14px; background:var(--bg3); border-top:1px solid var(--br); }
+        .voice-bar.show { display:flex; }
+        .voice-dot { width:10px; height:10px; border-radius:50%; background:var(--rd); animation:pulse-rec .8s infinite; }
+        .voice-time { font-size:14px; font-family:'DM Mono',monospace; color:var(--t1); }
+        .voice-cancel { background:var(--bg4); color:var(--t2); border-radius:8px; padding:5px 12px; font-size:12px; margin-left:auto; }
+        .voice-send { background:var(--ac); color:#fff; border-radius:8px; padding:5px 16px; font-size:12px; font-weight:600; }
+        .mbtn.active { color:var(--rd); }
         /* ── Forward picker ── */
         #fwdModal { position:fixed; inset:0; z-index:210; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; }
         #fwdModal.show { display:flex; }
@@ -3762,12 +3777,6 @@
                 <div class="clist" id="clist">
                     <div class="empty-list"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь</div>
                 </div>
-                <div class="archive-section" id="archiveSection">
-                    <button class="archive-toggle" onclick="toggleArchive()">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                        <span id="archiveLabel">Архив</span>
-                    </button>
-                </div>
             </div>
 
             <!-- NO CHAT -->
@@ -3841,8 +3850,6 @@
                     <div class="typing-dots"><span></span><span></span><span></span></div>
                     <span class="typing-label" id="typingLabel">печатает…</span>
                 </div>
-                <!-- Poll creator -->
-                <div id="pollContainer" style="display:none;padding:0 14px"></div>
                 <div class="reply-bar" id="replyBar">
                     <div class="reply-bar-inner">
                         <span class="rbi-from" id="rbiFrom"></span>
@@ -3856,16 +3863,27 @@
                     <span class="edit-bar-text" id="editBarText"></span>
                     <button class="edit-bar-cancel" onclick="cancelEdit()" title="Отмена"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
-                <div class="ibar">
-                    <!-- Voice record UI -->
-                    <div class="voice-rec" id="voiceRec">
-                        <span class="voice-rec-dot"></span>
-                        <span class="voice-rec-time" id="voiceTime">00:00</span>
-                        <button class="voice-rec-cancel" onclick="cancelVoice()">Отмена</button>
-                        <button class="voice-rec-send" onclick="stopVoice()">Отправить</button>
+                <!-- Poll creator -->
+                <div class="poll-bar" id="pollBar">
+                    <input class="poll-q" id="pollQ" placeholder="Вопрос…" />
+                    <div id="pollOpts">
+                        <input class="poll-o" placeholder="Вариант 1" />
+                        <input class="poll-o" placeholder="Вариант 2" />
                     </div>
-                    <button class="mbtn" onclick="startVoice()" title="Голосовое"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
-                    <button class="mbtn" onclick="showPollCreator()" title="Опрос"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="14" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/></svg></button>
+                    <button class="poll-add" onclick="addPollOpt()">+ Вариант</button>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <button class="poll-send-btn" onclick="sendPoll()">Отправить</button>
+                        <button class="poll-cancel-btn" onclick="cancelPollCreate()">Отмена</button>
+                    </div>
+                </div>
+                <!-- Voice record bar -->
+                <div class="voice-bar" id="voiceBar">
+                    <span class="voice-dot" id="voiceDot"></span>
+                    <span class="voice-time" id="voiceTime">00:00</span>
+                    <button class="voice-cancel" onclick="cancelVoice()">Отмена</button>
+                    <button class="voice-send" onclick="stopVoice()">Отправить</button>
+                </div>
+                <div class="ibar">
                     <label class="mbtn" style="cursor:pointer" title="Фото/видео">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                             viewBox="0 0 24 24">
@@ -3892,6 +3910,8 @@
                     </button>
                     <textarea class="minp" id="minp" rows="1" placeholder="Написать…" onkeydown="onKey(event)"
                         oninput="autoH(this)"></textarea>
+                    <button class="mbtn" id="micBtn" onclick="toggleVoice()" title="Голосовое"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+                    <button class="mbtn" onclick="showPollCreate()" title="Опрос"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="14" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/></svg></button>
                     <button class="sbtn" onclick="sendMsg()" title="Отправить">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
                             viewBox="0 0 24 24">
@@ -4275,24 +4295,6 @@
     <!-- Group info modal -->
     <div id="grpInfo">
         <div class="grp-info-box" id="grpInfoContent"></div>
-    </div>
-
-    <!-- Forward picker modal -->
-    <div id="fwdModal">
-        <div class="fwd-box">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <h3 style="margin:0">Переслать в…</h3>
-                <button style="background:none;color:var(--t3);font-size:18px;cursor:pointer" onclick="closeFwdModal()">&times;</button>
-            </div>
-            <div id="fwdList"></div>
-        </div>
-    </div>
-
-    <!-- Select mode bar -->
-    <div class="sel-bar" id="selBar">
-        <span class="sel-cnt" id="selCnt">0 выбрано</span>
-        <button onclick="fwdSelected()" style="margin-left:auto">Переслать</button>
-        <button onclick="cancelSelectMode()">Отмена</button>
     </div>
 
     <script>
@@ -5257,7 +5259,7 @@
 
         function closeChat() {
             saveDraft();
-            chatWith = null; cancelReply(); cancelSelectMode();
+            chatWith = null; cancelReply();
             _chatReady = false;
             document.getElementById('cmain').style.display = 'none';
             document.getElementById('nochat').style.display = 'flex';
@@ -5754,15 +5756,6 @@
 
             mw.appendChild(bodyWrap);
             if (isMe) mw.appendChild(mav);
-
-            // Select checkbox
-            const cb = document.createElement('div');
-            cb.className = 'sel-cb';
-            mw.appendChild(cb);
-            mw.querySelector('.sel-cb').addEventListener('click', e => {
-                e.stopPropagation();
-                if (selectMode) toggleSelectMsg(m.id);
-            });
 
             return mw;
         }
@@ -7702,7 +7695,12 @@
         /* ════════════════════════════════════════
            VOICE MESSAGES
         ════════════════════════════════════════ */
-        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null;
+        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null, _isRecording = false;
+
+        function toggleVoice() {
+            if (_isRecording) { stopVoice(); }
+            else { startVoice(); }
+        }
 
         function startVoice() {
             if (!navigator.mediaDevices) return toast('Микрофон не поддерживается', 'err');
@@ -7712,8 +7710,9 @@
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) voiceChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
                     stream.getTracks().forEach(t => t.stop());
-                    clearInterval(voiceTimer);
-                    document.getElementById('voiceRec').classList.remove('show');
+                    clearInterval(voiceTimer); _isRecording = false;
+                    document.getElementById('voiceBar').classList.remove('show');
+                    document.getElementById('micBtn').classList.remove('active');
                     if (voiceChunks.length) {
                         const blob = new Blob(voiceChunks, { type: 'audio/webm' });
                         const reader = new FileReader();
@@ -7722,8 +7721,9 @@
                     }
                 };
                 mediaRecorder.start();
-                voiceStartTime = Date.now();
-                document.getElementById('voiceRec').classList.add('show');
+                voiceStartTime = Date.now(); _isRecording = true;
+                document.getElementById('voiceBar').classList.add('show');
+                document.getElementById('micBtn').classList.add('active');
                 voiceTimer = setInterval(() => {
                     const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
                     const m = Math.floor(elapsed / 60), s = elapsed % 60;
@@ -7762,54 +7762,44 @@
         ════════════════════════════════════════ */
         let pollOptions = [];
 
-        function showPollCreator() {
-            pollOptions = ['', ''];
-            const inp = document.getElementById('minp');
-            inp.style.display = 'none';
-            let html = '<div class="poll-create-box" id="pollCreateBox">' +
-                '<input class="poll-opt-inp" id="pollQuestion" placeholder="Вопрос…" style="font-weight:600" />';
-            for (let i = 0; i < pollOptions.length; i++) {
-                html += '<input class="poll-opt-inp poll-opt-item" placeholder="Вариант ' + (i + 1) + '" value="" oninput="pollOptions[' + i + ']=this.value" />';
-            }
-            html += '<button class="poll-add-opt" onclick="addPollOption()">+ Добавить вариант</button>' +
-                '<div style="display:flex;gap:8px;margin-top:8px">' +
-                '<button style="flex:1;background:var(--ac);color:#fff;border-radius:8px;padding:8px;font-size:13px;font-weight:600" onclick="sendPoll()">Отправить</button>' +
-                '<button style="flex:1;background:var(--bg4);color:var(--t2);border-radius:8px;padding:8px;font-size:13px" onclick="cancelPoll()">Отмена</button></div></div>';
-            document.getElementById('pollContainer').innerHTML = html;
-            document.getElementById('pollContainer').style.display = 'block';
+        function showPollCreate() {
+            document.getElementById('pollBar').classList.add('show');
+            document.getElementById('pollQ').value = '';
+            document.getElementById('pollOpts').innerHTML =
+                '<input class="poll-o" placeholder="Вариант 1" /><input class="poll-o" placeholder="Вариант 2" />';
         }
 
-        function addPollOption() {
-            pollOptions.push('');
-            showPollCreator();
+        function addPollOpt() {
+            const inp = document.createElement('input');
+            inp.className = 'poll-o';
+            inp.placeholder = 'Вариант ' + (document.querySelectorAll('#pollOpts .poll-o').length + 1);
+            document.getElementById('pollOpts').appendChild(inp);
+            inp.focus();
         }
 
-        function cancelPoll() {
-            pollOptions = [];
-            document.getElementById('pollContainer').style.display = 'none';
-            document.getElementById('pollContainer').innerHTML = '';
-            document.getElementById('minp').style.display = '';
+        function cancelPollCreate() {
+            document.getElementById('pollBar').classList.remove('show');
         }
 
         async function sendPoll() {
             if (!chatWith) return;
-            const question = document.getElementById('pollQuestion')?.value?.trim();
-            if (!question) return toast('Введите вопрос', 'err');
+            const q = document.getElementById('pollQ').value.trim();
+            if (!q) return toast('Введите вопрос', 'err');
             const opts = [];
-            document.querySelectorAll('.poll-opt-item').forEach(el => {
+            document.querySelectorAll('#pollOpts .poll-o').forEach(el => {
                 const v = el.value.trim();
                 if (v) opts.push(v);
             });
             if (opts.length < 2) return toast('Минимум 2 варианта', 'err');
-            const poll = { question, options: opts, votes: [], multiple: false };
+            const pollJSON = JSON.stringify({ question: q, options: opts, votes: [], multiple: false });
             try {
-                const body = { type: 'poll', text: JSON.stringify(poll) };
+                const body = { type: 'poll', text: pollJSON };
                 if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
                 else body.to = chatWith.username;
                 const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
                 const d = await r.json();
                 if (!r.ok) return toast(d.error, 'err');
-                cancelPoll();
+                cancelPollCreate();
             } catch (e) { toast('Ошибка', 'err'); }
         }
 
@@ -7843,118 +7833,6 @@
             html += '<div style="font-size:11px;color:var(--t3);margin-top:4px">' + totalVotes + ' голосов</div>';
             html += '</div>';
             return html;
-        }
-
-        /* ════════════════════════════════════════
-           FORWARD & SELECT MODE
-        ════════════════════════════════════════ */
-        let selectMode = false, selectedMsgs = new Set();
-
-        function enterSelectMode(msgId) {
-            selectMode = true;
-            selectedMsgs = new Set([msgId]);
-            document.getElementById('marea').classList.add('sel-mode');
-            document.getElementById('selBar').classList.add('show');
-            updateSelCount();
-            // Show all checkboxes
-            document.getElementById('marea').querySelectorAll('.mw').forEach(el => {
-                el.querySelector('.sel-cb').style.display = 'flex';
-                const mid = parseInt(el.dataset.msgid);
-                if (selectedMsgs.has(mid)) el.querySelector('.sel-cb').classList.add('checked');
-            });
-        }
-
-        function toggleSelectMsg(msgId) {
-            if (!selectMode) return;
-            if (selectedMsgs.has(msgId)) selectedMsgs.delete(msgId);
-            else selectedMsgs.add(msgId);
-            updateSelCount();
-            // Update checkbox
-            const el = document.querySelector('.mw[data-msgid="' + msgId + '"]');
-            if (el) {
-                const cb = el.querySelector('.sel-cb');
-                if (selectedMsgs.has(msgId)) cb.classList.add('checked');
-                else cb.classList.remove('checked');
-            }
-        }
-
-        function updateSelCount() {
-            document.getElementById('selCnt').textContent = selectedMsgs.size + ' выбрано';
-        }
-
-        function cancelSelectMode() {
-            selectMode = false;
-            selectedMsgs.clear();
-            document.getElementById('marea').classList.remove('sel-mode');
-            document.getElementById('selBar').classList.remove('show');
-        }
-
-        async function fwdSelected() {
-            if (!selectedMsgs.size) return;
-            // Show forward picker
-            try {
-                const r = await fetch('/api/chats', { headers: hdrs() });
-                const d = await r.json();
-                if (!r.ok) return toast('Ошибка', 'err');
-                const chats = d.chats || [];
-                const list = chats.map(c => ({
-                    chatKey: c.chatKey,
-                    isGroup: c.isGroup,
-                    name: c.otherDisplayname,
-                    username: c.otherUsername,
-                    avatar: c.otherAvatar
-                }));
-                document.getElementById('fwdList').innerHTML = list.map(c =>
-                    '<div class="fwd-item" onclick="doForward(\'' + (c.isGroup ? c.username : c.otherUsername) + '\',' + c.isGroup + ')">' +
-                    '<div class="av av-' + avc(c.name) + '">' + ini(c.name) + '</div>' +
-                    '<div class="fwd-item-name">' + esc(c.name) + '</div></div>'
-                ).join('');
-                document.getElementById('fwdModal').classList.add('show');
-            } catch (e) { toast('Ошибка', 'err'); }
-        }
-
-        function closeFwdModal() { document.getElementById('fwdModal').classList.remove('show'); }
-
-        async function doForward(dest, isGroup) {
-            closeFwdModal();
-            const ids = [...selectedMsgs];
-            let done = 0;
-            for (const id of ids) {
-                try {
-                    const body = { id };
-                    if (isGroup) body.chat = dest;
-                    else body.to = dest;
-                    const r = await fetch('/api/forward', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
-                    if (r.ok) done++;
-                } catch (e) {}
-            }
-            toast('Переслано: ' + done + '/' + ids.length, 'ok');
-            cancelSelectMode();
-        }
-
-        /* ════════════════════════════════════════
-           ARCHIVE
-        ════════════════════════════════════════ */
-        let showArchived = false;
-
-        async function toggleArchive() {
-            showArchived = !showArchived;
-            loadChats();
-        }
-
-        async function archiveChat(chatKey) {
-            try {
-                await fetch('/api/archive/' + encodeURIComponent(chatKey), { method: 'POST', headers: hdrs() });
-                toast('Чат архивирован', 'ok');
-                loadChats();
-            } catch (e) { toast('Ошибка', 'err'); }
-        }
-
-        async function unarchiveChat(chatKey) {
-            try {
-                await fetch('/api/archive/' + encodeURIComponent(chatKey), { method: 'DELETE', headers: hdrs() });
-                loadChats();
-            } catch (e) { toast('Ошибка', 'err'); }
         }
 
         /* ════════════════════════════════════════
