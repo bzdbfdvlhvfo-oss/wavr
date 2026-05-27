@@ -120,6 +120,7 @@ async function initDB() {
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_preview TEXT DEFAULT NULL`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited     BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned     BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE`,
     `CREATE TABLE IF NOT EXISTS chat_hidden (username TEXT NOT NULL, chat_key TEXT NOT NULL, hidden_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000), PRIMARY KEY (username, chat_key))`,
     `CREATE TABLE IF NOT EXISTS blocked (username TEXT NOT NULL, blocked TEXT NOT NULL, ts BIGINT, PRIMARY KEY (username, blocked))`,
   ];
@@ -276,7 +277,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = Date.now() + 30 * 24 * 3600 * 1000;
     await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token, username, expires, ua]);
-    ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio }, token });
+    ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio, is_premium: u.is_premium || false }, token });
   } catch (e) { err(res, e.message, 500); }
 });
 
@@ -289,7 +290,7 @@ app.post('/api/logout', auth, async (req, res) => {
 // GET PROFILE
 app.get('/api/profile/:username', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT username,displayname,avatar,bio,created_at FROM users WHERE username=$1', [sanitize(req.params.username)]);
+    const r = await pool.query('SELECT username,displayname,avatar,bio,created_at,is_premium FROM users WHERE username=$1', [sanitize(req.params.username)]);
     if (!r.rows.length) return err(res, 'Не найден', 404);
     ok(res, { user: r.rows[0] });
   } catch (e) { err(res, e.message, 500); }
@@ -802,7 +803,7 @@ app.post('/api/sessions/revoke-others', auth, async (req, res) => {
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT u.username, u.displayname, u.bio, u.reg_ip, u.created_at,
+      `SELECT u.username, u.displayname, u.bio, u.reg_ip, u.created_at, u.is_premium,
         (SELECT COUNT(*) FROM messages WHERE from_user=u.username) as msg_count,
         (SELECT COUNT(*) FROM sessions WHERE username=u.username) as session_count,
         (SELECT MAX(last_seen) FROM sessions WHERE username=u.username) as last_seen
@@ -852,24 +853,24 @@ app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
     const msgs = await pool.query('SELECT COUNT(*) as c FROM messages');
     const sess = await pool.query('SELECT COUNT(*) as c FROM sessions');
     const today = await pool.query('SELECT COUNT(*) as c FROM messages WHERE ts > $1', [Date.now() - 86400000]);
-    ok(res, { users: parseInt(users.rows[0].c), messages: parseInt(msgs.rows[0].c), sessions: parseInt(sess.rows[0].c), today: parseInt(today.rows[0].c) });
+    const prem = await pool.query('SELECT COUNT(*) as c FROM users WHERE is_premium=true');
+    ok(res, { users: parseInt(users.rows[0].c), messages: parseInt(msgs.rows[0].c), sessions: parseInt(sess.rows[0].c), today: parseInt(today.rows[0].c), premium: parseInt(prem.rows[0].c) });
   } catch (e) { err(res, e.message, 500); }
 });
-app.post('/api/admin/broadcast', auth, adminOnly, async (req, res) => {
+app.post('/api/admin/premium', auth, adminOnly, async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text || !text.trim()) return err(res, 'Текст не может быть пустым', 400);
-    const users = await pool.query('SELECT username FROM users WHERE bio IS DISTINCT FROM $1', ['__BANNED__']);
-    let sent = 0;
-    const ts = Date.now();
-    for (const u of users.rows) {
-      await pool.query(
-        'INSERT INTO messages (from_user, to_user, content, type, ts, read) VALUES ($1,$2,$3,$4,$5,$6)',
-        [OWNER, u.username, text.trim(), 'text', ts, '0']
-      );
-      sent++;
-    }
-    ok(res, { ok: true, sent });
+    const { username, action } = req.body;
+    if (!username || !['grant','revoke'].includes(action)) return err(res, 'Нужен username и action (grant/revoke)', 400);
+    if (username === OWNER) return err(res, 'Владелец и так премиум', 403);
+    const r = await pool.query('UPDATE users SET is_premium=$1 WHERE username=$2 RETURNING username, is_premium', [action === 'grant', username]);
+    if (!r.rows.length) return err(res, 'Пользователь не найден', 404);
+    ok(res, { ok: true, user: r.rows[0] });
+  } catch (e) { err(res, e.message, 500); }
+});
+app.get('/api/admin/premium', auth, adminOnly, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT username, displayname, is_premium FROM users WHERE is_premium=true ORDER BY username');
+    ok(res, { users: r.rows });
   } catch (e) { err(res, e.message, 500); }
 });
 app.get('/api/admin/system', auth, adminOnly, async (req, res) => {

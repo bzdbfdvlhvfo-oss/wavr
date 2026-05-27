@@ -2465,7 +2465,8 @@
         .set-row-desc {
             font-size: 11px;
             color: var(--t3);
-            margin-top: 1px;
+            margin-top: 4px;
+            display: block;
         }
         .set-row input[type="checkbox"] {
             width: 40px;
@@ -2777,6 +2778,26 @@
             max-width: 280px;
             margin-left: auto;
             margin-right: auto;
+        }
+
+        .pm-premium {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--ac);
+            background: linear-gradient(135deg, rgba(124, 111, 247, .15), rgba(168, 85, 247, .1));
+            border: 1px solid rgba(124, 111, 247, .25);
+            border-radius: 20px;
+            padding: 4px 12px;
+            box-shadow: 0 0 16px rgba(124, 111, 247, .25);
+            animation: premGlow 2s ease-in-out infinite alternate;
+        }
+        @keyframes premGlow {
+            from { box-shadow: 0 0 12px rgba(124, 111, 247, .2); }
+            to   { box-shadow: 0 0 24px rgba(124, 111, 247, .5); }
         }
 
         .pm-body {
@@ -3806,12 +3827,6 @@
                     </div>
                     <button class="ib" id="msgSearchClose" title="Закрыть"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
-                <!-- Pinned bar -->
-                <div class="pinbar" id="pinbar">
-                    <span class="pinbar-ico"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M9 9V2h6v7"/><path d="M7 9h10"/><path d="M12 9v11"/></svg></span>
-                    <span class="pinbar-text" id="pinbarText"></span>
-                    <button class="pinbar-close" id="pinbarClose" title="Открепить"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                </div>
                 <!-- Typing indicator -->
                 <div class="typing-wrap" id="typingWrap">
                     <div class="typing-dots"><span></span><span></span><span></span></div>
@@ -4020,6 +4035,7 @@
                 </div>
                 <div class="pm-name" id="pmDn">—</div>
                 <div class="pm-tag" id="pmTag">@—</div>
+                <div class="pm-premium" id="pmPremium" style="display:none"><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Участник проекта</div>
                 <div class="pm-bio-display" id="pmBioDisplay"></div>
             </div>
             <div class="pm-body">
@@ -4076,6 +4092,7 @@
                 <div style="font-size:19px;font-weight:700;font-family:'Syne',sans-serif;margin-bottom:3px" id="umdn">
                 </div>
                 <div style="font-size:12px;color:var(--t2);font-family:'DM Mono',monospace" id="umun"></div>
+                <div class="pm-premium" id="umPremium" style="display:none;margin:6px auto 0;width:fit-content"><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Участник проекта</div>
             </div>
             <div class="um-body">
                 <div id="umbio-row" class="um-info-row" style="display:none">
@@ -4122,13 +4139,17 @@
                 <div class="admin-tabs" id="adminTabs">
                     <span class="atab act" data-tab="stats" onclick="switchAdminTab('stats')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="10"/></svg>Статистика</span>
                     <span class="atab" data-tab="users" onclick="switchAdminTab('users')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Юзеры</span>
-                    <span class="atab" data-tab="broadcast" onclick="switchAdminTab('broadcast')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><polygon points="11 3 3 21 13 21 21 21 11 3"/><line x1="13" y1="13" x2="11" y2="21"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Рассылка</span>
+                    <span class="atab" data-tab="broadcast" onclick="switchAdminTab('broadcast')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Премиум</span>
                     <span class="atab" data-tab="system" onclick="switchAdminTab('system')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Система</span>
                 </div>
                 <div class="admin-stats" id="adminStatsRow">
                     <div class="astat">
                         <div class="astat-n" id="as-users">—</div>
                         <div class="astat-l">Юзеры</div>
+                    </div>
+                    <div class="astat">
+                        <div class="astat-n" id="as-premium">—</div>
+                        <div class="astat-l"><svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px;color:var(--ac)"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Premium</div>
                     </div>
                     <div class="astat">
                         <div class="astat-n" id="as-msgs">—</div>
@@ -4186,7 +4207,7 @@
         const _avCache = {};
         const _userDnCache = {}; // username → displayname cache
 
-        const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉', '😍', '💀', '🤝', '✨', '😤', '🥹', '💯', '🙏', '😎', '🤔'];
+        const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉', '😍', '💀', '🤝', '✨', '😤', '🥹', '💯', '🙏', '😎', '🤔', '🥶', '🤯', '🫡', '🫠', '😈', '💅', '🎯', '🚀', '💜', '⭐', '🕊️', '🍿', '👀'];
         const AVC = [0, 1, 2, 3, 4, 5];
         const OWNER = 'timur';
 
@@ -4558,6 +4579,8 @@
             document.getElementById('pmDn').textContent = dn || '—';
             document.getElementById('pmTag').textContent = '@' + tag;
             document.getElementById('pmBioDisplay').textContent = bio;
+            const pb = document.getElementById('pmPremium');
+            if (me.is_premium) { pb.style.display = 'inline-flex'; } else { pb.style.display = 'none'; }
         }
 
         function closePM() { document.getElementById('pm').style.display = 'none'; }
@@ -4701,6 +4724,8 @@
                 document.getElementById('umdn').textContent = dn;
                 document.getElementById('umun').textContent = '@' + un;
                 document.getElementById('umun2').textContent = '@' + un;
+                const premBadge = document.getElementById('umPremium');
+                if (u.is_premium) { premBadge.style.display = 'block'; } else { premBadge.style.display = 'none'; }
                 const bioEl = document.getElementById('umbio');
                 const bioRow = document.getElementById('umbio-row');
                 if (bio && bio !== '__BANNED__') {
@@ -6158,7 +6183,7 @@
             statsRow.style.display = tab === 'stats' ? '' : 'none';
             if (tab === 'stats') { loadAdminStats(); body.innerHTML = ''; }
             else if (tab === 'users') { document.getElementById('adminSearch').value = ''; loadAdminUsers(); }
-            else if (tab === 'broadcast') { renderBroadcast(); }
+            else if (tab === 'broadcast') { renderPremium(); }
             else if (tab === 'system') { renderSystemInfo(); }
         }
 
@@ -6170,6 +6195,7 @@
                 document.getElementById('as-msgs').textContent = d.messages ?? '—';
                 document.getElementById('as-today').textContent = d.today ?? '—';
                 document.getElementById('as-sess').textContent = d.sessions ?? '—';
+                document.getElementById('as-premium').textContent = d.premium ?? '—';
             } catch (e) { }
         }
 
@@ -6246,33 +6272,54 @@
             } catch (e) { toast('Сетевая ошибка', 'err'); }
         }
 
-        function renderBroadcast() {
+        function renderPremium() {
             const body = document.getElementById('adminBody');
-            body.className = 'admin-body bc-pane';
-            body.innerHTML = '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--t1)">Текст рассылки</label>' +
-                '<textarea class="bc-text" id="bcText" placeholder="Напишите сообщение для всех пользователей…"></textarea>' +
-                '<button class="bc-send" id="bcSendBtn">' + S.send.replace('stroke-width="2"','stroke-width="2" style="vertical-align:middle;margin-right:5px"') + 'Отправить всем</button>' +
-                '<div class="bc-status" id="bcStatus"></div>';
-            document.getElementById('bcSendBtn').onclick = sendBroadcast;
+            body.className = 'admin-body';
+            body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3)"><span class="spin"></span></div>';
+            loadPremiumUsers();
         }
-
-        async function sendBroadcast() {
-            const text = document.getElementById('bcText').value.trim();
-            if (!text) { toast('Введите текст', 'err'); return; }
-            const ok = await wConfirm('Отправить это сообщение <b>всем</b> пользователям?<br><span style="color:var(--t2);font-size:12px">Всего: ' + document.getElementById('as-users').textContent + ' юзеров</span>', S.send2, true);
-            if (!ok) return;
-            const btn = document.getElementById('bcSendBtn'); btn.disabled = true; btn.style.opacity = '.5';
-            const st = document.getElementById('bcStatus'); st.textContent = 'Отправка…';
+        async function loadPremiumUsers() {
+            const body = document.getElementById('adminBody');
             try {
-                const r = await fetch('/api/admin/broadcast', {
-                    method: 'POST', headers: hdrs(),
-                    body: JSON.stringify({ text })
-                });
+                const r = await fetch('/api/admin/premium', { headers: hdrs() });
                 const d = await r.json();
-                if (r.ok) { st.innerHTML = '<span style="color:var(--gr)">✓ Отправлено ' + (d.sent || '—') + ' пользователям</span>'; }
-                else { st.innerHTML = '<span style="color:var(--rd)">' + (d.error || 'Ошибка') + '</span>'; toast(d.error || 'Ошибка', 'err'); }
-            } catch (e) { st.innerHTML = '<span style="color:var(--rd)">Сетевая ошибка</span>'; toast('Сетевая ошибка', 'err'); }
-            finally { btn.disabled = false; btn.style.opacity = ''; }
+                const prems = d.users || [];
+                let html = '<div style="margin-bottom:12px"><input class="admin-sinp" id="premSearch" placeholder="Ник для выдачи премиума…" style="padding:9px 13px;width:100%"><button class="bc-send" id="premGrantBtn" style="margin-top:6px">' + S.crown + ' Выдать премиум</button></div>';
+                html += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px;font-weight:600">Премиум пользователи:</div>';
+                if (!prems.length) {
+                    html += '<div style="color:var(--t3);padding:12px;text-align:center;font-size:13px">Пока ни у кого нет премиума</div>';
+                } else {
+                    prems.forEach(u => {
+                        html += '<div class="auser"><div class="auser-inf"><div class="auser-name">' + S.crown + ' ' + esc(u.displayname) + ' <span style="color:var(--t2);font-size:10px;font-family:\'DM Mono\',monospace">@' + esc(u.username) + '</span></div><div class="auser-meta">Премиум</div></div><div class="auser-acts"><button class="abtn unban" data-prem-revoke="' + u.username + '">Лишить</button></div></div>';
+                    });
+                }
+                body.innerHTML = html;
+                document.getElementById('premGrantBtn').onclick = grantPremium;
+                body.querySelectorAll('[data-prem-revoke]').forEach(btn => {
+                    btn.onclick = () => revokePremium(btn.dataset.premRevoke);
+                });
+            } catch (e) { body.innerHTML = '<div style="color:var(--rd);padding:18px;text-align:center">Ошибка</div>'; }
+        }
+        async function grantPremium() {
+            const inp = document.getElementById('premSearch');
+            const un = inp.value.trim();
+            if (!un) { toast('Введите username', 'err'); return; }
+            try {
+                const r = await fetch('/api/admin/premium', { method: 'POST', headers: hdrs(), body: JSON.stringify({ username: un, action: 'grant' }) });
+                const d = await r.json();
+                if (r.ok) { toast('@' + un + ' — премиум выдан'); inp.value = ''; loadPremiumUsers(); loadAdminStats(); }
+                else toast(d.error || 'Ошибка', 'err');
+            } catch (e) { toast('Сетевая ошибка', 'err'); }
+        }
+        async function revokePremium(un) {
+            const ok2 = await wConfirm('Лишить премиума @' + un + '?', S.warning, true);
+            if (!ok2) return;
+            try {
+                const r = await fetch('/api/admin/premium', { method: 'POST', headers: hdrs(), body: JSON.stringify({ username: un, action: 'revoke' }) });
+                const d = await r.json();
+                if (r.ok) { toast('@' + un + ' — премиум отозван'); loadPremiumUsers(); loadAdminStats(); }
+                else toast(d.error || 'Ошибка', 'err');
+            } catch (e) { toast('Сетевая ошибка', 'err'); }
         }
 
         async function renderSystemInfo() {
