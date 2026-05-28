@@ -158,8 +158,17 @@ const ok = (res, d) => res.json(d);
 const err = (res, msg, s = 400) => res.status(s).json({ error: msg });
 const parseReactions = (raw) => { try { return JSON.parse(raw || '{}'); } catch (e) { return {}; } };
 const sanitize = (s) => s && typeof s === 'string' ? xss(s, { whiteList: {}, stripIgnoreTag: true }) : (s || '');
+const typeLabel = (type) => type === 'image' ? 'Фото' : type === 'video' ? 'Видео' : type === 'file' ? 'Файл' : type === 'voice' ? '🎤 Голосовое' : type === 'sticker' ? '🎨 Стикер' : type === 'poll' ? '📊 Опрос' : null;
 
 const OWNER = process.env.WAVR_OWNER || 'timur';
+
+// Throttle last_seen DB writes — max once per 60s per token
+const _lastSeenThrottle = new Map();
+const LAST_SEEN_THROTTLE_MS = 60000;
+
+// Auth cache: token -> { username, expires_at } with 60s TTL to avoid DB on every request
+const _authCache = new Map();
+const AUTH_CACHE_TTL = 60000;
 
 function adminOnly(req, res, next) {
   if (req.username !== OWNER) return err(res, 'Нет прав', 403);
@@ -169,15 +178,36 @@ function adminOnly(req, res, next) {
 async function auth(req, res, next) {
   const t = req.headers['x-token'];
   if (!t) return err(res, 'Не авторизован', 401);
+  const now = Date.now();
+  const cached = _authCache.get(t);
+  if (cached && now - cached.ts < AUTH_CACHE_TTL) {
+    if (cached.expires_at && now > cached.expires_at) {
+      _authCache.delete(t);
+      pool.query('DELETE FROM sessions WHERE token=$1', [t]).catch(() => {});
+      return err(res, 'Сессия истекла', 401);
+    }
+    req.username = cached.username;
+    const lastSeen = _lastSeenThrottle.get(t);
+    if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
+      _lastSeenThrottle.set(t, now);
+      pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [now, t]).catch(() => {});
+    }
+    return next();
+  }
   const r = await pool.query('SELECT username, expires_at FROM sessions WHERE token=$1', [t]);
   if (!r.rows.length) return err(res, 'Сессия истекла', 401);
   const sess = r.rows[0];
-  if (sess.expires_at && Date.now() > parseInt(sess.expires_at)) {
+  if (sess.expires_at && now > parseInt(sess.expires_at)) {
     await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
     return err(res, 'Сессия истекла', 401);
   }
+  _authCache.set(t, { username: sess.username, expires_at: parseInt(sess.expires_at || 0), ts: now });
   req.username = sess.username;
-  pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [Date.now(), t]).catch(() => {});
+  const lastSeen = _lastSeenThrottle.get(t);
+  if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
+    _lastSeenThrottle.set(t, now);
+    pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [now, t]).catch(() => {});
+  }
   next();
 }
 
@@ -247,14 +277,28 @@ async function wsPushToChat(chatKey, sender, data) {
   if (isGroupChat(chatKey)) {
     const gid = groupIdFromKey(chatKey);
     const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [gid]);
-    for (const m of allMem.rows) wsBroadcast(m.username, data);
+    for (const m of allMem.rows) {
+      wsBroadcast(m.username, data);
+      if (m.username !== sender && (!wsClients.has(m.username) || ![...(wsClients.get(m.username) || [])].some(s => s.readyState === 1))) {
+        const pushPayload = {
+          type: 'new_message',
+          chatKey,
+          from: data.from,
+          displayname: data.displayname || data.from,
+          text: typeLabel(data.msgType) || (data.text || ''),
+          msgType: data.msgType,
+          id: data.id,
+          ts: data.ts
+        };
+        sendPushNotification(m.username, pushPayload);
+      }
+    }
   } else {
     const parts = chatKey.split(':');
     for (const p of parts) {
       if (p !== sender) wsBroadcast(p, data);
     }
     wsBroadcast(sender, data);
-    // Push for offline private chat participants
     for (const p of parts) {
       if (p !== sender && (!wsClients.has(p) || ![...(wsClients.get(p) || [])].some(s => s.readyState === 1))) {
         const pushPayload = {
@@ -262,7 +306,7 @@ async function wsPushToChat(chatKey, sender, data) {
           chatKey,
           from: data.from,
           displayname: data.displayname || data.from,
-          text: data.msgType === 'sticker' ? '🎨 Стикер' : (data.text || ''),
+          text: typeLabel(data.msgType) || (data.text || ''),
           msgType: data.msgType,
           id: data.id,
           ts: data.ts
@@ -534,7 +578,7 @@ app.post('/api/send', auth, async (req, res) => {
       if (rr.rows.length) {
         replyToId = rpId;
         const rm = rr.rows[0];
-        const pv = rm.type === 'image' ? 'Фото' : rm.type === 'video' ? 'Видео' : rm.type === 'file' ? 'Файл' : rm.type === 'voice' ? 'Голосовое' : rm.type === 'sticker' ? 'Стикер' : sanitize((rm.text || '').slice(0, 80));
+        const pv = typeLabel(rm.type) || sanitize((rm.text || '').slice(0, 80));
         replyPreview = JSON.stringify({ from: rm.from_dn || rm.from_user, text: pv });
       }
     }
@@ -714,7 +758,7 @@ app.patch('/api/message/:id', auth, async (req, res) => {
 app.delete('/api/chat/:other', auth, async (req, res) => {
   try {
     const key = chatKey(req.username, req.params.other);
-    const { everyone } = req.query;
+    const everyone = req.query.everyone === 'true';
     if (everyone) {
       await pool.query('DELETE FROM messages WHERE chat_key=$1', [key]);
       await pool.query('DELETE FROM chat_hidden WHERE chat_key=$1', [key]);
@@ -1043,16 +1087,19 @@ app.get('/api/chats', auth, async (req, res) => {
 
     const others = [...new Set(result.rows.map(r => r.other_username).filter(Boolean))];
     let usersMap = {};
-    if (others.length) {
-      const ph = others.map((_, i) => `$${i + 1}`).join(',');
-      const ur = await pool.query(`SELECT username,displayname,avatar FROM users WHERE username IN (${ph})`, others);
-      for (const u of ur.rows) usersMap[u.username] = u;
-    }
     let lastSeenMap = {};
     if (others.length) {
       const ph = others.map((_, i) => `$${i + 1}`).join(',');
-      const ls = await pool.query(`SELECT username, MAX(last_seen) as last_seen FROM sessions WHERE username IN (${ph}) GROUP BY username`, others);
-      for (const s of ls.rows) lastSeenMap[s.username] = parseInt(s.last_seen || 0);
+      const ur = await pool.query(`
+        SELECT u.username, u.displayname, u.avatar, MAX(s.last_seen) as last_seen
+        FROM users u LEFT JOIN sessions s ON s.username = u.username
+        WHERE u.username IN (${ph})
+        GROUP BY u.username, u.displayname, u.avatar
+      `, others);
+      for (const u of ur.rows) {
+        usersMap[u.username] = u;
+        lastSeenMap[u.username] = parseInt(u.last_seen || 0);
+      }
     }
 
     for (const row of result.rows) {
@@ -1062,12 +1109,8 @@ app.get('/api/chats', auth, async (req, res) => {
       const u = usersMap[other] || {};
       let preview = row.deleted ? 'Удалено' : row.last_message;
       if (!row.deleted) {
-        if (row.last_type === 'image') preview = 'Фото';
-        else if (row.last_type === 'video') preview = 'Видео';
-        else if (row.last_type === 'file') preview = 'Файл';
-        else if (row.last_type === 'voice') preview = '🎤 Голосовое';
-        else if (row.last_type === 'sticker') preview = '🎨 Стикер';
-        else if (row.last_type === 'poll') preview = '📊 Опрос';
+        const tl = typeLabel(row.last_type);
+        if (tl) preview = tl;
         else if (row.last_type === 'system') preview = row.last_message;
         else if (row.last_from && row.last_from === req.username) preview = 'Вы: ' + (preview || '');
         else if (preview && preview.length > 40) preview = preview.slice(0, 40) + '…';
@@ -1110,16 +1153,14 @@ app.get('/api/chats', auth, async (req, res) => {
         lastTs = parseInt(g.last_ts);
         lastType = g.last_type || 'text';
         if (g.last_deleted) lastMessage = 'Удалено';
-        else if (lastType === 'image') lastMessage = 'Фото';
-        else if (lastType === 'video') lastMessage = 'Видео';
-        else if (lastType === 'file') lastMessage = 'Файл';
-        else if (lastType === 'voice') lastMessage = '🎤 Голосовое';
-        else if (lastType === 'sticker') lastMessage = '🎨 Стикер';
-        else if (lastType === 'poll') lastMessage = '📊 Опрос';
-        else if (lastType === 'system') lastMessage = g.last_text;
         else {
-          const dn = g.last_from_dn || '';
-          lastMessage = dn ? `${dn}: ${g.last_text.slice(0, 40)}` : g.last_text.slice(0, 40);
+          const tl = typeLabel(lastType);
+          if (tl) lastMessage = tl;
+          else if (lastType === 'system') lastMessage = g.last_text;
+          else {
+            const dn = g.last_from_dn || '';
+            lastMessage = dn ? `${dn}: ${g.last_text.slice(0, 40)}` : g.last_text.slice(0, 40);
+          }
         }
       }
       chats.push({
@@ -1227,11 +1268,13 @@ app.post('/api/admin/unban/:username', auth, adminOnly, async (req, res) => {
 });
 app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
   try {
-    const users = await pool.query('SELECT COUNT(*) as c FROM users');
-    const msgs = await pool.query('SELECT COUNT(*) as c FROM messages');
-    const sess = await pool.query('SELECT COUNT(*) as c FROM sessions');
-    const today = await pool.query('SELECT COUNT(*) as c FROM messages WHERE ts > $1', [Date.now() - 86400000]);
-    const prem = await pool.query('SELECT COUNT(*) as c FROM users WHERE is_premium=true');
+    const [users, msgs, sess, today, prem] = await Promise.all([
+      pool.query('SELECT COUNT(*) as c FROM users'),
+      pool.query('SELECT COUNT(*) as c FROM messages'),
+      pool.query('SELECT COUNT(*) as c FROM sessions'),
+      pool.query('SELECT COUNT(*) as c FROM messages WHERE ts > $1', [Date.now() - 86400000]),
+      pool.query('SELECT COUNT(*) as c FROM users WHERE is_premium=true')
+    ]);
     ok(res, { users: parseInt(users.rows[0].c), messages: parseInt(msgs.rows[0].c), sessions: parseInt(sess.rows[0].c), today: parseInt(today.rows[0].c), premium: parseInt(prem.rows[0].c) });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1326,9 +1369,12 @@ app.post('/api/groups', auth, async (req, res) => {
     const id = genId();
     const ts = Date.now();
     await pool.query('INSERT INTO chats (id,type,name,creator,created_at) VALUES ($1,$2,$3,$4,$5)', [id, 'group', name, req.username, ts]);
+    const vals = [], params = [id, ts];
     for (const u of allMembers) {
-      await pool.query('INSERT INTO chat_members (chat_id,username,role,joined_at) VALUES ($1,$2,$3,$4)', [id, u, u === req.username ? 'owner' : 'member', ts]);
+      vals.push(`($1,$${params.length + 1},$${params.length + 2},$2)`);
+      params.push(u, u === req.username ? 'owner' : 'member');
     }
+    await pool.query(`INSERT INTO chat_members (chat_id,username,role,joined_at) VALUES ${vals.join(',')}`, params);
     // Send system message
     const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
     const creatorDn = dnR.rows[0]?.displayname || req.username;

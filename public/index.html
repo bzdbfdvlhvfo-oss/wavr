@@ -1251,7 +1251,16 @@
             color: var(--ac);
         }
 
-        /* Message action buttons — shown via context menu (right-click / long-press) */
+        .mretry {
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--err);
+            margin-left: 4px;
+            user-select: none;
+        }
+        .mretry:hover { opacity: .7; }
+        .mw-failed { opacity: .6; }
+        .mw-failed:hover { opacity: 1; }
 
 
         /* Media */
@@ -4578,7 +4587,7 @@
             document.getElementById('auth').style.display = 'flex';
         }
 
-        function saveSession() { localStorage.setItem('wavr_s', JSON.stringify({ me, token })); }
+        function saveSession() { localStorage.setItem('wavr_s', JSON.stringify({ me, token, chatWith })); }
 
         var _isTouch = 'maxTouchPoints' in navigator && navigator.maxTouchPoints > 0;
         var _pollMsgMs = _isTouch ? 3000 : 1500, _pollChatMs = _isTouch ? 5000 : 3000;
@@ -5759,10 +5768,16 @@
 
             bodyWrap.appendChild(bodyInner);
 
-            // Message footer (time + tick)
+            // Message footer (time + tick + retry)
             const mfoot = document.createElement('div'); mfoot.className = 'mfoot';
             const mtime = document.createElement('span'); mtime.className = 'mtime'; mtime.textContent = ft(m.ts);
             mfoot.appendChild(mtime);
+            if (m._fake) {
+                const rt = document.createElement('span');
+                rt.className = 'mretry'; rt.textContent = '↻'; rt.title = 'Повторить';
+                rt.addEventListener('click', (e) => { e.stopPropagation(); retrySend(m.id); });
+                mfoot.appendChild(rt);
+            }
             if (isMe && !m.deleted) {
                 const tick = document.createElement('span');
                 tick.className = 'mtick ' + (m.read_at > 0 ? 'r' : 's');
@@ -6106,21 +6121,31 @@
                     if (el) { el.dataset.id = d.id; }
                     _lastChatsJson = null;
                     loadChats();
-                    if (!_chatPollBusy) {
+                    if (!_chatPollBusy && !_wsConnected) {
                         _chatPollBusy = true; _chatPollStuckTs = Date.now();
                         doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
                     }
                     saveDraft();
                 } else {
                     const el = document.querySelector(`[data-id="${tmpId}"]`);
-                    if (el) el.remove();
+                    if (el) { el.dataset.failed = '1'; el.classList.add('mw-failed'); }
                     toast('Ошибка: ' + (d.error || 'отправка не удалась'), 'err');
                 }
             } catch (e) {
                 const el = document.querySelector(`[data-id="${tmpId}"]`);
-                if (el) el.remove();
+                if (el) { el.dataset.failed = '1'; el.classList.add('mw-failed'); }
                 toast('Ошибка сети', 'err');
             }
+        }
+
+        function retrySend(tmpId) {
+            const el = document.querySelector(`[data-id="${tmpId}"]`);
+            if (!el) return;
+            const textEl = el.querySelector('.bbl');
+            const text = textEl ? textEl.textContent : '';
+            el.remove();
+            const inp = document.getElementById('minp');
+            inp.value = text; inp.style.height = ''; inp.focus();
         }
 
         /* ════════════════════════════════════════
@@ -7434,7 +7459,7 @@
         /* ════════════════════════════════════════
             WEB SOCKET CLIENT
         ════════════════════════════════════════ */
-        let _ws = null;
+        let _ws = null, _wsConnected = false;
         let _wsReconn = null;
 
         function connectWS() {
@@ -7450,6 +7475,7 @@
 
             _ws.onopen = () => {
                 console.log('WS: connected!');
+                _wsConnected = true;
                 document.getElementById('csInd').classList.add('on');
                 document.getElementById('offlineBar').style.display = 'none';
                 _wsRetries = 0;
@@ -7457,6 +7483,7 @@
 
             _ws.onclose = (ev) => {
                 console.log('WS: closed code=' + ev.code + ' reason=' + (ev.reason||''));
+                _wsConnected = false;
                 document.getElementById('csInd').classList.remove('on');
                 _ws = null;
                 if (_wsRetries >= 2) document.getElementById('offlineBar').style.display = 'block';
@@ -7683,7 +7710,7 @@
 
         try {
             const sv = localStorage.getItem('wavr_s');
-            if (sv) { const s = JSON.parse(sv); me = s.me; token = s.token; enterApp(); }
+            if (sv) { const s = JSON.parse(sv); me = s.me; token = s.token; enterApp(); if (s.chatWith) { chatWith = s.chatWith; showChat(); } }
         } catch (e) { localStorage.removeItem('wavr_s'); }
 
         /* ════════════════════════════════════════
