@@ -4659,6 +4659,7 @@
         }
 
         async function tickChats() {
+            if (_wsConnected) return;
             const now = Date.now();
             if (_chatsBusy && now - _chatsBusyStuckTs > 6000) { _chatsBusy = false; }
             if (!_chatsBusy) {
@@ -5002,6 +5003,18 @@
            CHATS LIST
         ════════════════════════════════════════ */
         let _lastChatsJson = null;
+        let _loadChatsTid = null;
+
+        function invalidateChats() {
+            _lastChatsJson = null;
+            if (!_loadChatsTid) _loadChatsTid = setTimeout(() => { _loadChatsTid = null; loadChats(); }, 300);
+        }
+
+        function showChat() {
+            if (!chatWith) return;
+            if (chatWith.isGroup) openGroupChat(chatWith.groupId || chatWith.username, chatWith.displayname, chatWith.avatar);
+            else openChat(chatWith.username, chatWith.displayname, chatWith.avatar);
+        }
 
         async function loadChats() {
             try {
@@ -5229,6 +5242,7 @@
             await fetchAllMsgs();
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
+            loadDraft();
             markRead(username);
             _lastChatsJson = null;
             loadChats();
@@ -5276,6 +5290,7 @@
             await fetchAllMsgs();
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
+            loadDraft();
             markReadGroup(groupId);
             _lastChatsJson = null;
             loadChats();
@@ -6236,7 +6251,7 @@
                             toast('Ошибка caption: ' + (d2.error || 'отправка'), 'err');
                         }
                     }
-                    _lastChatsJson = null; loadChats();
+                    invalidateChats();
                 } else {
                     toast('Ошибка: ' + (d.error || 'отправка не удалась'), 'err');
                 }
@@ -6575,7 +6590,7 @@
                         }
                     }
                     toast(everyone ? 'Удалено у всех' : 'Удалено');
-                    _lastChatsJson = null; loadChats();
+                    invalidateChats();
                 }
             } catch (e) { }
         }
@@ -6587,7 +6602,7 @@
                 if (!action) return;
                 try {
                     await fetch('/api/groups/' + (chatWith.groupId || chatWith.username) + '/leave', { method: 'POST', headers: hdrs() });
-                    closeChat(); _lastChatsJson = null; loadChats();
+                    closeChat(); invalidateChats();
                     toast('Вы покинули группу');
                 } catch (e) { }
                 return;
@@ -6598,7 +6613,7 @@
                 const everyone = action === 'everyone';
                 const url = everyone ? `/api/chat/${chatWith.username}?everyone=1` : `/api/chat/${chatWith.username}`;
                 await fetch(url, { method: 'DELETE', headers: hdrs() });
-                closeChat(); _lastChatsJson = null; loadChats();
+                closeChat(); invalidateChats();
                 toast(everyone ? 'Чат удалён у всех' : 'Чат удалён');
             } catch (e) { }
         }
@@ -6612,7 +6627,7 @@
                 if (!action) return;
                 try {
                     await fetch('/api/archive/' + encodeURIComponent(ci.dataset.chatKey || ''), { method: 'POST', headers: hdrs() });
-                    _lastChatsJson = null; loadChats();
+                    invalidateChats();
                     toast('Группа архивирована');
                 } catch (e) { }
                 return;
@@ -6624,7 +6639,7 @@
                 const url = everyone ? `/api/chat/${u}?everyone=1` : `/api/chat/${u}`;
                 await fetch(url, { method: 'DELETE', headers: hdrs() });
                 if (chatWith?.username === u) closeChat();
-                _lastChatsJson = null; loadChats();
+                invalidateChats();
                 toast(everyone ? 'Чат удалён у всех' : 'Чат удалён');
             } catch (e) { }
         }
@@ -7926,7 +7941,7 @@
                     seenIds.add(d.id);
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.dataset.id = d.id;
-                    _lastChatsJson = null; loadChats();
+                    invalidateChats();
                     if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
                 } else {
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
@@ -7990,7 +8005,7 @@
                     seenIds.add(d.id);
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.dataset.id = d.id;
-                    _lastChatsJson = null; loadChats();
+                    invalidateChats();
                     if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
                 } else {
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
