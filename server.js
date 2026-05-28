@@ -653,13 +653,18 @@ app.post('/api/read', auth, async (req, res) => {
       `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user!=$3 AND to_user!=$3 AND NOT deleted AND read_at=0 RETURNING id`,
       [now, key, req.username]
     );
-    // Push read updates via WS
-    for (const row of upd.rows) {
+    // Batch push read updates via WS
+    if (upd.rows.length > 0) {
+      const ids = upd.rows.map(r => r.id);
       if (chat) {
+        // Group chat: get all members once, send batch to all
         const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [sanitize(chat)]);
-        for (const m of allMem.rows) wsBroadcast(m.username, { type: 'read', id: row.id, read_at: now });
+        for (const m of allMem.rows) {
+          wsBroadcast(m.username, { type: 'read_batch', ids, read_at: now });
+        }
       } else {
-        wsBroadcast(other, { type: 'read', id: row.id, read_at: now });
+        // Private chat: send batch to other user
+        wsBroadcast(other, { type: 'read_batch', ids, read_at: now });
       }
     }
     ok(res, { ok: true });

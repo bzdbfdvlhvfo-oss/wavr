@@ -7515,9 +7515,12 @@
                         }
                         return;
                     }
-                    if (d.type === 'read') {
-                        const t = document.querySelector(`[data-id="${d.id}"] .mtick`);
-                        if (t) { t.textContent = '✓✓'; t.className = 'mtick r'; }
+                    if (d.type === 'read' || d.type === 'read_batch') {
+                        const ids = d.type === 'read_batch' ? d.ids : [d.id];
+                        for (const id of ids) {
+                            const t = document.querySelector(`[data-id="${id}"] .mtick`);
+                            if (t) { t.textContent = '✓✓'; t.className = 'mtick r'; }
+                        }
                         return;
                     }
                     if (d.type === 'reaction') {
