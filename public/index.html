@@ -3462,6 +3462,8 @@
                 transition: transform .25s cubic-bezier(.22, .9, .36, 1);
                 transform: translateX(0);
                 visibility: visible;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
             }
 
             #app.co .sb {
@@ -5368,16 +5370,12 @@
             marea.classList.remove('switching');
             void marea.offsetWidth;
             marea.classList.add('switching');
-            marea.innerHTML = Array(5).fill(0).map((_, i) =>
-                `<div class="skel-msg${i % 2 === 0 ? '' : ' skel-msg-me'}">
-                  <div class="skel-msg-av"></div>
-                  <div class="skel-msg-bbl"><div class="skel skel-ln w80"></div><div class="skel skel-ln w55"></div></div>
-                </div>`
-            ).join('');
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
             marea.removeEventListener('scroll', _mareaScrollHandler);
 
+            const targetUser = username;
             await fetchAllMsgs();
+            if (!chatWith || chatWith.username !== targetUser) return;
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
             loadDraft();
@@ -5425,7 +5423,9 @@
             marea.innerHTML = '<div style="text-align:center;padding:44px"><span class="spin"></span></div>';
             marea.removeEventListener('scroll', _mareaScrollHandler);
 
+            const targetGroup = groupId;
             await fetchAllMsgs();
+            if (!chatWith || chatWith.groupId !== targetGroup) return;
             document.getElementById('marea').classList.remove('switching');
             _chatReady = true;
             loadDraft();
@@ -5556,7 +5556,11 @@
                     const a = document.getElementById('marea');
                     a.innerHTML = '<div class="empty-chat"><div class="eico"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div>Начните переписку!</div></div>';
                 }
-            } catch (e) { if (e.status === 401) throw e; }
+            } catch (e) {
+                if (e.status === 401) throw e;
+                const a = document.getElementById('marea');
+                if (a) a.innerHTML = '<div style="text-align:center;padding:44px;color:var(--t2)"><div style="font-size:28px;margin-bottom:8px">⚠️</div><div>Ошибка загрузки</div><div style="font-size:13px;margin-top:12px"><a href="#" onclick="event.preventDefault();fetchAllMsgs();return false" style="color:var(--ac)">Повторить</a></div></div>';
+            }
         }
 
         let _pollAbort = null;
@@ -7564,21 +7568,25 @@
 
         // Long press handler for mobile context menu
         function setupLongPress() {
-            document.querySelectorAll('.mw:not([data-lp])').forEach(mw => {
-                mw.dataset.lp = '1';
-                let _tid = null;
-                mw.addEventListener('touchstart', ev => {
-                    if (!chatWith) return;
-                    _tid = setTimeout(() => {
-                        const touch = ev.touches[0];
-                        const fakeE = { preventDefault: () => { }, clientX: touch.clientX, clientY: touch.clientY };
-                        showCtxMenu(fakeE, mw);
-                    }, 500);
-                }, { passive: true });
-                mw.addEventListener('touchend', () => clearTimeout(_tid), { passive: true });
-                mw.addEventListener('touchmove', () => clearTimeout(_tid), { passive: true });
-            });
+            // Already delegated — no-op; the single listener on #marea handles it.
         };
+        // Delegated long press: one listener on marea instead of 3 per message
+        document.getElementById('marea').addEventListener('touchstart', ev => {
+            const mw = ev.target.closest('.mw');
+            if (!mw || !chatWith) return;
+            mw._lpTid = setTimeout(() => {
+                const touch = ev.touches[0];
+                showCtxMenu({ preventDefault: () => {}, clientX: touch.clientX, clientY: touch.clientY }, mw);
+            }, 500);
+        }, { passive: true });
+        document.getElementById('marea').addEventListener('touchend', ev => {
+            const mw = ev.target.closest('.mw');
+            if (mw && mw._lpTid) { clearTimeout(mw._lpTid); mw._lpTid = null; }
+        }, { passive: true });
+        document.getElementById('marea').addEventListener('touchmove', ev => {
+            const mw = ev.target.closest('.mw');
+            if (mw && mw._lpTid) { clearTimeout(mw._lpTid); mw._lpTid = null; }
+        }, { passive: true });
 
         /* ════════════════════════════════════════
            PATCH openChat to start/stop helpers
