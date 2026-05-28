@@ -7567,7 +7567,7 @@
             if (_wsReconn) clearTimeout(_wsReconn);
             _wsRetries = (_wsRetries || 0) + 1;
             const delay = Math.min(1000 * Math.pow(2, _wsRetries), 30000);
-            _wsReconn = setTimeout(() => { _wsRetries = 0; connectWS(); }, delay);
+            _wsReconn = setTimeout(() => { connectWS(); }, delay);
         }
 
         function disconnectWS() {
