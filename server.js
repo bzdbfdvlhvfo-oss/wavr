@@ -807,6 +807,8 @@ app.post('/api/pin/:id', auth, async (req, res) => {
 
 // ── Typing indicator (in-memory) ──
 const typingMap = new Map();
+const groupMembersCache = new Map(); // chatId → [usernames]
+
 app.post('/api/typing', auth, async (req, res) => {
   try {
     const { to, chat } = req.body;
@@ -820,9 +822,15 @@ app.post('/api/typing', auth, async (req, res) => {
     }
     typingMap.set(key, { username: req.username, ts: Date.now() });
     if (chat) {
-      const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [sanitize(chat)]);
-      for (const m of allMem.rows) {
-        if (m.username !== req.username) wsBroadcast(m.username, { type: 'typing', from: req.username, chatKey: key });
+      // Use cache for group members
+      const chatId = sanitize(chat);
+      if (!groupMembersCache.has(chatId)) {
+        const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [chatId]);
+        groupMembersCache.set(chatId, allMem.rows.map(m => m.username));
+      }
+      const members = groupMembersCache.get(chatId);
+      for (const m of members) {
+        if (m !== req.username) wsBroadcast(m, { type: 'typing', from: req.username, chatKey: key });
       }
     } else {
       wsBroadcast(to, { type: 'typing', from: req.username, chatKey: key });
@@ -1427,6 +1435,7 @@ app.post('/api/groups/:id/members', auth, async (req, res) => {
     const payload = { type: 'members_added', chatKey: key, groupId: id, members: toAdd, adder: req.username, id: parseInt(isR.rows[0].id), ts: parseInt(isR.rows[0].ts) };
     const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
     for (const m of allMem.rows) wsBroadcast(m.username, payload);
+    groupMembersCache.delete(id); // Invalidate cache
     ok(res, { ok: true, added: toAdd });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1458,6 +1467,7 @@ app.delete('/api/groups/:id/members/:username', auth, async (req, res) => {
     const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [id]);
     const payload = { type: 'member_removed', chatKey: key, groupId: id, removed: target, actor: req.username, isSelf, id: parseInt(isR.rows[0].id), ts: parseInt(isR.rows[0].ts) };
     for (const m of [...allMem.rows, { username: target }]) wsBroadcast(m.username, payload);
+    groupMembersCache.delete(id); // Invalidate cache
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
