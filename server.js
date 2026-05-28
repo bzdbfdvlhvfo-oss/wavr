@@ -376,8 +376,32 @@ app.get('/api/search/messages', auth, async (req, res) => {
       `SELECT id, chat_key, from_user, from_dn, text, type, ts, file_name, file_size, reply_to, reply_preview, reactions, edited, deleted, read_at FROM messages WHERE chat_key = ANY($1) AND (LOWER(text) LIKE LOWER($2) OR LOWER(file_name) LIKE LOWER($2)) AND deleted = false ORDER BY ts DESC LIMIT 50`,
       [chatKeys, like]
     );
+    // Resolve chat names
+    const uniqueKeys = [...new Set(msgR.rows.map(r => r.chat_key))];
+    const chatNameMap = {};
+    const grpKeys = uniqueKeys.filter(k => k.startsWith('group:'));
+    if (grpKeys.length) {
+      const grpIds = grpKeys.map(k => k.replace('group:', ''));
+      const grpR = await pool.query(`SELECT id, name FROM chats WHERE id = ANY($1)`, [grpIds]);
+      for (const g of grpR.rows) chatNameMap['group:' + g.id] = g.name;
+    }
+    const privKeys = uniqueKeys.filter(k => !k.startsWith('group:'));
+    if (privKeys.length) {
+      const others = privKeys.map(k => k.replace(username + ':', '').replace(':' + username, '')).filter(u => u !== username);
+      if (others.length) {
+        const ph = others.map((_, i) => '$' + (i + 2)).join(',');
+        const ur = await pool.query(`SELECT username, displayname FROM users WHERE username IN (${ph})`, ['dummy', ...others]);
+        for (const u of ur.rows) {
+          for (const k of privKeys) {
+            if (k.includes(u.username) && !chatNameMap[k]) chatNameMap[k] = u.displayname;
+          }
+        }
+      }
+      for (const k of privKeys) { if (!chatNameMap[k]) chatNameMap[k] = k.split(':').filter(u => u !== username).join(':') || k; }
+    }
     const messages = msgR.rows.map(r => ({
-      id: r.id, chatKey: r.chat_key, from: r.from_user, displayname: r.from_dn,
+      id: r.id, chatKey: r.chat_key, chatName: chatNameMap[r.chat_key] || r.chat_key,
+      from: r.from_user, displayname: r.from_dn,
       text: r.text, msgType: r.type, ts: parseInt(r.ts),
       fileName: r.file_name, fileSize: r.file_size,
       replyTo: r.reply_to, replyPreview: r.reply_preview,

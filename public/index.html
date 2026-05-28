@@ -1725,6 +1725,121 @@
             font-size: 12px;
         }
 
+        /* ── Global search ── */
+        .gsearch-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.6);
+            z-index: 1000;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 80px;
+            backdrop-filter: blur(4px);
+        }
+        .gsearch-modal {
+            background: var(--bg2);
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            width: 520px;
+            max-width: calc(100vw - 32px);
+            max-height: calc(100vh - 160px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 48px rgba(0,0,0,.5);
+        }
+        .gsearch-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--br);
+        }
+        .gsearch-header input {
+            flex: 1;
+            background: var(--bg3);
+            border: 1px solid var(--br);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            color: var(--t1);
+            outline: none;
+            transition: border-color .15s;
+        }
+        .gsearch-header input:focus { border-color: var(--ac); }
+        .gsearch-header .ib {
+            width: 30px; height: 30px; font-size: 12px;
+        }
+        .gsearch-results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+            min-height: 60px;
+        }
+        .gsearch-hint {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--t3);
+            border-top: 1px solid var(--br);
+            text-align: center;
+        }
+        .gsearch-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: background .1s;
+            border-bottom: 1px solid rgba(255,255,255,.03);
+        }
+        .gsearch-item:hover, .gsearch-item.sel { background: var(--hov); }
+        .gsearch-item-av {
+            width: 36px; height: 36px; min-width: 36px;
+            border-radius: 50%;
+            background: var(--ac);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .gsearch-item-body { flex: 1; min-width: 0; }
+        .gsearch-item-chat {
+            font-size: 11px;
+            color: var(--ac);
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .gsearch-item-text {
+            font-size: 13px;
+            color: var(--t1);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
+        }
+        .gsearch-item-text em { color: var(--ac); font-style: normal; background: rgba(110,140,255,.2); padding: 0 2px; border-radius: 2px; }
+        .gsearch-item-meta {
+            font-size: 11px;
+            color: var(--t3);
+            margin-top: 2px;
+        }
+        .gsearch-spinner {
+            text-align: center;
+            padding: 30px;
+            color: var(--t3);
+            font-size: 13px;
+        }
+        .gsearch-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--t3);
+            font-size: 13px;
+        }
+
         .pinbar {
             display: none;
             align-items: center;
@@ -3775,6 +3890,13 @@
                                 <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                             </svg>
                         </button>
+                        <button class="ib" onclick="openGlobalSearch()" title="Поиск сообщений (Ctrl+K)">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                                viewBox="0 0 24 24">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                        </button>
                         <button class="ib dng" onclick="doLogout()" title="Выйти">
                             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
                                 viewBox="0 0 24 24">
@@ -3800,6 +3922,20 @@
                 <div class="clabel">Чаты <button class="grp-add-btn" onclick="openGrpModal()" title="Создать группу">+</button></div>
                 <div class="clist" id="clist">
                     <div class="empty-list"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Найдите кого-нибудь</div>
+                </div>
+            </div>
+
+            <!-- Global search -->
+            <div class="gsearch-overlay" id="gsearchOverlay" style="display:none" onclick="closeGlobalSearch(event)">
+                <div class="gsearch-modal" onclick="event.stopPropagation()">
+                    <div class="gsearch-header">
+                        <input type="text" id="gsearchInput" placeholder="Поиск сообщений…" autocomplete="off" autofocus oninput="onGlobalSearchInput()">
+                        <button class="ib" onclick="closeGlobalSearch()" title="Закрыть (Esc)">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <div class="gsearch-results" id="gsearchResults"></div>
+                    <div class="gsearch-hint">Введите минимум 2 символа для поиска по всем чатам</div>
                 </div>
             </div>
 
@@ -6401,6 +6537,77 @@
             document.getElementById('settingsModal').style.display = 'none';
         }
 
+        /* ════════════════════════════════════════
+            GLOBAL SEARCH
+        ════════════════════════════════════════ */
+        let _gstimer = null;
+        function openGlobalSearch() {
+            document.getElementById('gsearchOverlay').style.display = 'flex';
+            const inp = document.getElementById('gsearchInput');
+            inp.value = '';
+            inp.focus();
+            document.getElementById('gsearchResults').innerHTML = '';
+            _gstimer = null;
+        }
+        function closeGlobalSearch(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('gsearchOverlay').style.display = 'none';
+            clearTimeout(_gstimer);
+            _gstimer = null;
+        }
+        function onGlobalSearchInput() {
+            clearTimeout(_gstimer);
+            const v = document.getElementById('gsearchInput').value.trim();
+            if (v.length < 2) {
+                document.getElementById('gsearchResults').innerHTML = '';
+                return;
+            }
+            _gstimer = setTimeout(() => doGlobalSearch(v), 300);
+        }
+        async function doGlobalSearch(q) {
+            const el = document.getElementById('gsearchResults');
+            el.innerHTML = '<div class="gsearch-spinner">Поиск…</div>';
+            try {
+                const r = await fetch(`/api/search/messages?q=${encodeURIComponent(q)}`, { headers: hdrs() });
+                const d = await r.json();
+                if (!d.messages?.length) {
+                    el.innerHTML = '<div class="gsearch-empty">Ничего не найдено</div>';
+                    return;
+                }
+                el.innerHTML = '';
+                for (const m of d.messages) {
+                    const item = document.createElement('div');
+                    item.className = 'gsearch-item';
+                    const avatarLetter = (m.chatName || '?')[0].toUpperCase();
+                    const fromLabel = m.displayname || m.from;
+                    const time = timeAgo(m.ts);
+                    let textHtml = esc(m.text || typeLabel(m.msgType) || '');
+                    textHtml = textHtml.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<em>$1</em>');
+                    item.innerHTML = `
+                        <div class="gsearch-item-av">${esc(avatarLetter)}</div>
+                        <div class="gsearch-item-body">
+                            <div class="gsearch-item-chat">${esc(m.chatName)}</div>
+                            <div class="gsearch-item-text">${textHtml}</div>
+                            <div class="gsearch-item-meta">${esc(fromLabel)} · ${time}</div>
+                        </div>
+                    `;
+                    item.dataset.chatKey = m.chatKey;
+                    item.addEventListener('click', () => {
+                        closeGlobalSearch();
+                        if (m.chatKey.startsWith('group:')) {
+                            openGroupChat(m.chatKey.replace('group:', ''));
+                        } else {
+                            const other = m.chatKey.split(':').filter(u => u !== me.username)[0] || m.chatKey;
+                            openChat(other);
+                        }
+                    });
+                    el.appendChild(item);
+                }
+            } catch (e) {
+                el.innerHTML = '<div class="gsearch-empty">Ошибка поиска</div>';
+            }
+        }
+
         let _setSwipeInit = false, _setSwipePage = 0;
         function initSetSwipe() {
             _setSwipePage = 0;
@@ -6453,6 +6660,10 @@
                 }
             }
             // Ctrl+F → open message search
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                openGlobalSearch();
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 const sb = document.getElementById('msgSearch');
                 if (chatWith && sb.style.display !== 'flex') {
@@ -6460,10 +6671,11 @@
                     openMsgSearch();
                 }
             }
-            // Escape → close message search
-            if (e.key === 'Escape' && document.getElementById('msgSearch').style.display === 'flex') {
-                closeMsgSearch();
-                e.preventDefault();
+            // Escape → close overlays
+            if (e.key === 'Escape') {
+                const gs = document.getElementById('gsearchOverlay');
+                if (gs.style.display === 'flex') { closeGlobalSearch(); e.preventDefault(); return; }
+                if (document.getElementById('msgSearch').style.display === 'flex') { closeMsgSearch(); e.preventDefault(); return; }
             }
         });
 
