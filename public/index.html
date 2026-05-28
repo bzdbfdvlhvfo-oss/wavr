@@ -7455,12 +7455,30 @@
                     const d = JSON.parse(e.data);
                     if (d.type === 'connected') return;
                     if (d.type === 'message' || d.type === 'group_created') {
-                        if (chatWith) {
+                        if (chatWith && d.type === 'message') {
                             const myCk = chatWith.isGroup ? (chatWith.chatKey || 'group:' + (chatWith.groupId || chatWith.username)) : [me.username, chatWith.username].sort().join(':');
-                            if (d.chatKey === myCk) {
-                                if (_chatPollBusy) return;
-                                _chatPollBusy = true; _chatPollStuckTs = Date.now();
-                                doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
+                            if (d.chatKey === myCk && !seenIds.has(d.id)) {
+                                // Real-time: render message directly from WebSocket
+                                const msg = {
+                                    id: d.id,
+                                    from: d.from,
+                                    displayname: d.displayname,
+                                    text: d.text,
+                                    type: d.msgType,
+                                    ts: d.ts,
+                                    deleted: false,
+                                    read_at: 0,
+                                    reactions: {},
+                                    file_name: d.fileName || null,
+                                    file_size: d.fileSize || 0,
+                                    reply_to: d.replyTo || null,
+                                    reply_preview: d.replyPreview || null,
+                                    edited: false,
+                                    pinned: false
+                                };
+                                appendMsgs([msg]);
+                                seenIds.add(d.id);
+                                lastTs = Math.max(lastTs, d.ts);
                             }
                         }
                         if (d.type === 'group_created' && d.members && d.members.includes(me.username)) {
