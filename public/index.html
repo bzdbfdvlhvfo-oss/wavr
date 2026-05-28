@@ -4628,6 +4628,9 @@
         let _chatReady = false; // true after fetchAllMsgs completes
 
         async function tickMsg() {
+            // Skip polling if WebSocket is connected (real-time delivery)
+            if (_ws && _ws.readyState === 1) return;
+            
             const now = Date.now();
             if (_chatPollBusy && now - _chatPollStuckTs > 6000) { _chatPollBusy = false; }
             // Don't poll until initial messages are loaded
