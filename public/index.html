@@ -4519,7 +4519,7 @@
             s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
             s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
             s = s.replace(/~~([^~]+)~~/g, '<s>$1</s>');
-            s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+            s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href=\'$1\' target="_blank" rel="noopener noreferrer">$1</a>');
             // Restore code blocks
             s = s.replace(/\x00CODE(\d+)\x00/g, (_, i) => `<code>${codeBlocks[+i]}</code>`);
             return s;
@@ -7752,10 +7752,17 @@
 
         function renderGrpMembers() {
             const list = document.getElementById('grpMemList');
-            list.innerHTML = grpMembers.map(m =>
-                '<span class="grp-mem-chip"><span class="mini-av av-' + avc(m) + '">' + ini(m) + '</span>' + esc(m) +
-                '<button onclick="grpMembers=grpMembers.filter(x=>x!==\'' + m + '\');renderGrpMembers()">×</button></span>'
-            ).join('');
+            list.innerHTML = '';
+            for (const m of grpMembers) {
+                const chip = document.createElement('span');
+                chip.className = 'grp-mem-chip';
+                chip.innerHTML = '<span class="mini-av av-' + avc(m) + '">' + ini(m) + '</span>' + esc(m);
+                const btn = document.createElement('button');
+                btn.textContent = '×';
+                btn.addEventListener('click', () => { grpMembers = grpMembers.filter(x => x !== m); renderGrpMembers(); });
+                chip.appendChild(btn);
+                list.appendChild(chip);
+            }
         }
 
         async function createGroup() {

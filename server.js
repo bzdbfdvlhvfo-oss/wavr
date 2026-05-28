@@ -13,9 +13,9 @@ const xss = require('xss');
 const app = express();
 const server = http.createServer(app);
 
-// Prevent unhandled rejections from crashing the process
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason?.message || reason);
+  process.exit(1);
 });
 
 app.use(express.json({ limit: '25mb' }));
@@ -258,7 +258,7 @@ setInterval(() => {
     }
   }
   const empty = [];
-  for (const { set, ws } of toRemove) { set.delete(ws); if (!set.size) { const k = [...wsClients.entries()].find(([,s]) => s === set)?.[0]; if (k) empty.push(k); } }
+  for (const { set, ws } of toRemove) { set.delete(ws); if (!set.size) { for (const [k, s] of wsClients) { if (s === set) { empty.push(k); break; } } } }
   for (const k of empty) wsClients.delete(k);
 }, 30000);
 
@@ -937,13 +937,13 @@ app.get('/api/messages', auth, async (req, res) => {
     } else {
       return err(res, 'Нужен b или chat');
     }
-    const sinceTs = parseInt(since || '0');
-    const beforeTs = parseInt(before || '0');
+    const sinceTs = Math.max(0, parseInt(since) || 0);
+    const beforeTs = Math.max(0, parseInt(before) || 0);
     const hid = await pool.query(
       'SELECT hidden_at FROM chat_hidden WHERE username=$1 AND chat_key=$2',
       [req.username, key]
     );
-    const hiddenAt = hid.rows.length ? parseInt(hid.rows[0].hidden_at) : 0;
+    const hiddenAt = hid.rows.length ? Math.max(0, parseInt(hid.rows[0].hidden_at) || 0) : 0;
     let rows;
     if (beforeTs > 0) {
       const r = await pool.query(
@@ -1322,7 +1322,7 @@ app.post('/api/admin/broadcast', auth, adminOnly, async (req, res) => {
     const { text } = req.body;
     if (!text || typeof text !== 'string') return err(res, 'Текст обязателен', 400);
     const users = await pool.query('SELECT username FROM users');
-    const msg = { type: 'admin_broadcast', text };
+    const msg = { type: 'admin_broadcast', text: sanitize(text) };
     for (const row of users.rows) {
       wsBroadcast(row.username, msg);
     }
