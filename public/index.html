@@ -7457,7 +7457,8 @@
                     if (d.type === 'message' || d.type === 'group_created') {
                         if (chatWith && d.type === 'message') {
                             const myCk = chatWith.isGroup ? (chatWith.chatKey || 'group:' + (chatWith.groupId || chatWith.username)) : [me.username, chatWith.username].sort().join(':');
-                            if (d.chatKey === myCk && !seenIds.has(d.id)) {
+                            // Skip own messages (already rendered as fake in sendMsg)
+                            if (d.chatKey === myCk && !seenIds.has(d.id) && d.from !== me.username) {
                                 // Real-time: render message directly from WebSocket
                                 const msg = {
                                     id: d.id,
