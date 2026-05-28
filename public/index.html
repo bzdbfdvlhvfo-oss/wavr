@@ -79,6 +79,7 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--br2); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
+        * { scrollbar-width: thin; scrollbar-color: var(--br2) transparent; }
 
         button {
             font-family: inherit;
@@ -337,9 +338,14 @@
 ══════════════════════════════════════════ */
         #app {
             display: none;
-            height: 100dvh;
+            flex: 1;
+            overflow: hidden;
             position: relative;
-            z-index: 1;
+            background: var(--bg);
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
         }
 
         .layout {
@@ -2679,7 +2685,7 @@
         /* Wallpaper picker */
         .wp-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
             gap: 8px;
             padding: 4px 24px 12px;
         }
@@ -3348,11 +3354,11 @@
             }
 
             .marea {
-                padding: 10px 6px;
+                padding: 10px 8px;
             }
 
             .mw {
-                max-width: 92%;
+                max-width: 85%;
             }
 
             .mw .reacts {
@@ -3424,6 +3430,9 @@
             }
             .mw.group {
                 margin-top: -5px;
+            }
+            .bbl.emoji-only {
+                font-size: 1.8em;
             }
         }
         @media (min-width: 641px) {
@@ -4679,6 +4688,7 @@
         }
 
         function openPM() {
+            document.body.style.overflow = 'hidden';
             profTab('edit');
             _newAv = null;
             document.getElementById('pmdn2').value = me.displayname || '';
@@ -4726,7 +4736,7 @@
             if (me.is_premium) { pb.classList.add('show'); } else { pb.classList.remove('show'); }
         }
 
-        function closePM() { document.getElementById('pm').style.display = 'none'; }
+        function closePM() { document.getElementById('pm').style.display = 'none'; document.body.style.overflow = ''; }
 
         function initThemeTab() {
             const curColor = localStorage.getItem('wavr_accent') || '#7c6ff7';
@@ -5015,7 +5025,7 @@
                             if (chatWith && c.otherUsername === chatWith.username) return; // current chat
                             const prevUnread = prevMap[c.otherUsername] || 0;
                             if ((c.unread || 0) > prevUnread) {
-                                notifyMsg(c.otherDisplayname, c.lastMessage || '');
+                                notifyMsg(c.otherUsername, c.otherDisplayname, c.lastMessage || '');
                             }
                         });
                     } catch (e) { }
@@ -5031,18 +5041,18 @@
             } catch (e) { if (e.status === 401) throw e; }
         }
 
-        function notifyMsg(from, text) {
+        function notifyMsg(username, displayname, text) {
             if (localStorage.getItem('wavr_notify') === '0') return;
             const w = document.getElementById('toast-wrap');
             const t = document.createElement('div');
             t.className = 'toast ok';
             t.style.cssText = 'cursor:pointer;pointer-events:all;max-width:260px;';
             const preview = text.length > 40 ? text.slice(0, 40) + '…' : text;
-            t.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><div><div style="font-weight:700;font-size:12px">${esc(from)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
+            t.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><div><div style="font-weight:700;font-size:12px">${esc(displayname)}</div><div style="opacity:.7;font-size:12px">${esc(preview)}</div></div>`;
             t.addEventListener('click', function () {
                 try {
                     const list = JSON.parse(_lastChatsJson || '[]');
-                    const match = list.find(c => c.otherDisplayname === from);
+                    const match = list.find(c => c.otherUsername === username);
                     if (match) openChat(match.otherUsername, match.otherDisplayname, match.otherAvatar || '');
                 } catch (e) { }
             });
@@ -7156,7 +7166,9 @@
             let x = e.clientX ?? (e.touches?.[0]?.clientX ?? 100);
             let y = e.clientY ?? (e.touches?.[0]?.clientY ?? 100);
             if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+            if (x < 8) x = 8;
             if (y + menuH > window.innerHeight - 8) y = y - menuH;
+            if (y < 8) y = 8;
             if (y < 8) y = 8;
             menu.style.left = x + 'px';
             menu.style.top = y + 'px';
@@ -7223,7 +7235,7 @@
             // Build quick picker with confirm
             let html = '<div style="max-height:50vh;overflow-y:auto">';
             for (const c of otherChats) {
-                const dest = c.isGroup ? c.otherUsername : c.otherUsername;
+                const dest = c.isGroup ? (c.groupId || c.otherUsername) : c.otherUsername;
                 html += `<div class="fwd-item" data-dest="${esc(dest)}" data-isgroup="${c.isGroup||false}" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer"><div class="av av-${avc(c.otherDisplayname)}" style="width:36px;height:36px;min-width:36px;font-size:11px;border-radius:50%;display:flex;align-items:center;justify-content:center">${ini(c.otherDisplayname)}</div><div style="font-size:14px;font-weight:500">${esc(c.otherDisplayname)}</div></div>`;
             }
             html += '</div>';

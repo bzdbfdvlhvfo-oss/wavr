@@ -146,8 +146,8 @@ async function initDB() {
     `CREATE TABLE IF NOT EXISTS blocked (username TEXT NOT NULL, blocked TEXT NOT NULL, ts BIGINT, PRIMARY KEY (username, blocked))`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (username TEXT NOT NULL, endpoint TEXT, auth TEXT, p256dh TEXT, PRIMARY KEY (username))`,
   ];
-  for (const m of migs) { try { await pool.query(m); } catch (e) { } }
-  try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { }
+  for (const m of migs) { try { await pool.query(m); } catch (e) { console.error('Migration error:', e.message); } }
+  try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { console.error('Session cleanup error:', e.message); }
   console.log('DB ready');
 }
 initDB().catch(console.error);
@@ -157,9 +157,9 @@ const chatKey = (a, b) => [a, b].sort().join(':');
 const ok = (res, d) => res.json(d);
 const err = (res, msg, s = 400) => res.status(s).json({ error: msg });
 const parseReactions = (raw) => { try { return JSON.parse(raw || '{}'); } catch (e) { return {}; } };
-const sanitize = (s) => typeof s === 'string' ? xss(s, { whiteList: {}, stripIgnoreTag: true }) : s;
+const sanitize = (s) => s && typeof s === 'string' ? xss(s, { whiteList: {}, stripIgnoreTag: true }) : (s || '');
 
-const OWNER = 'timur';
+const OWNER = process.env.WAVR_OWNER || 'timur';
 
 function adminOnly(req, res, next) {
   if (req.username !== OWNER) return err(res, 'Нет прав', 403);
@@ -198,8 +198,12 @@ wss.on('connection', (ws, req) => {
     console.log('WS connected: ' + username);
     ws.username = username;
 
-    if (!wsClients.has(username)) wsClients.set(username, new Set());
-    wsClients.get(username).add(ws);
+    const set = wsClients.get(username);
+    if (set) {
+      set.add(ws);
+    } else {
+      wsClients.set(username, new Set([ws]));
+    }
     ws.isAlive = true;
 
     ws.on('pong', () => { ws.isAlive = true; });
@@ -209,7 +213,7 @@ wss.on('connection', (ws, req) => {
     });
     ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
 
-    ws.send(JSON.stringify({ type: 'connected', username }));
+    try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) { console.log('WS send error: ' + (e?.message || e)); }
   })().catch((e) => { console.log('WS auth exception: ' + (e?.message || e)); try { ws.close(4001, 'Auth failed'); } catch(e2){} });
 });
 
@@ -220,13 +224,12 @@ setInterval(() => {
     for (const ws of set) {
       if (ws.isAlive === false) { ws.terminate(); toRemove.push({ set, ws }); continue; }
       ws.isAlive = false;
-      ws.ping();
+      try { ws.ping(); } catch (e) { ws.terminate(); toRemove.push({ set, ws }); }
     }
   }
-  for (const { set, ws } of toRemove) set.delete(ws);
-  for (const [uname, set] of wsClients) {
-    if (!set.size) wsClients.delete(uname);
-  }
+  const empty = [];
+  for (const { set, ws } of toRemove) { set.delete(ws); if (!set.size) { const k = [...wsClients.entries()].find(([,s]) => s === set)?.[0]; if (k) empty.push(k); } }
+  for (const k of empty) wsClients.delete(k);
 }, 30000);
 
 // Broadcast helper
@@ -235,7 +238,7 @@ function wsBroadcast(username, data) {
   if (!set) return;
   const msg = JSON.stringify(data);
   for (const ws of set) {
-    if (ws.readyState === 1) ws.send(msg);
+    if (ws.readyState === 1) { try { ws.send(msg); } catch (e) { /* socket closed between check and send */ } }
   }
 }
 
@@ -290,8 +293,8 @@ app.get('/api/stickers', (req, res) => {
 
 // ── Push notifications ──
 const webpush = require('web-push');
-const VAPID_PUBLIC_KEY = 'BL-zheSXvNqX0nAiuYTcyBENVJ3qEkUi8G3Qq02pmPfvpSwV6j6WKgmBn6sXvprdGCU6oHt_-zSbK_225J6XIfg';
-const VAPID_PRIVATE_KEY = 'foJ9jSjo2mQCg37E8Jq9Mhkddn6PXjK-M9KsvhJlbs8';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BL-zheSXvNqX0nAiuYTcyBENVJ3qEkUi8G3Qq02pmPfvpSwV6j6WKgmBn6sXvprdGCU6oHt_-zSbK_225J6XIfg';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'foJ9jSjo2mQCg37E8Jq9Mhkddn6PXjK-M9KsvhJlbs8';
 webpush.setVapidDetails('mailto:support@wavr.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 app.post('/api/push/subscribe', auth, async (req, res) => {
@@ -326,12 +329,12 @@ app.get('/api/search/messages', auth, async (req, res) => {
     // Search messages in those chats
     const like = '%' + q.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
     const msgR = await pool.query(
-      `SELECT id, chat_key, sender, displayname, text, msgtype, ts, file_name, file_size, reply_to, reply_preview, reactions, edited, deleted, read_at FROM messages WHERE chat_key = ANY($1) AND (LOWER(text) LIKE LOWER($2) OR LOWER(file_name) LIKE LOWER($2)) AND deleted = false ORDER BY ts DESC LIMIT 50`,
+      `SELECT id, chat_key, from_user, from_dn, text, type, ts, file_name, file_size, reply_to, reply_preview, reactions, edited, deleted, read_at FROM messages WHERE chat_key = ANY($1) AND (LOWER(text) LIKE LOWER($2) OR LOWER(file_name) LIKE LOWER($2)) AND deleted = false ORDER BY ts DESC LIMIT 50`,
       [chatKeys, like]
     );
     const messages = msgR.rows.map(r => ({
-      id: r.id, chatKey: r.chat_key, from: r.sender, displayname: r.displayname,
-      text: r.text, msgType: r.msgtype, ts: parseInt(r.ts),
+      id: r.id, chatKey: r.chat_key, from: r.from_user, displayname: r.from_dn,
+      text: r.text, msgType: r.type, ts: parseInt(r.ts),
       fileName: r.file_name, fileSize: r.file_size,
       replyTo: r.reply_to, replyPreview: r.reply_preview,
       reactions: parseReactions(r.reactions), edited: r.edited,
@@ -522,7 +525,7 @@ app.post('/api/send', auth, async (req, res) => {
     if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
     const dn = ur.rows[0].displayname;
     const ts = Date.now();
-    const storeText = msgType === 'text' ? sanitize(text.trim()) : text;
+    const storeText = msgType === 'text' ? sanitize(text.trim()) : typeof text === 'string' ? sanitize(text) : text;
 
     let replyToId = null, replyPreview = null;
     const rpId = parseInt(replyTo || 0);
@@ -674,7 +677,7 @@ app.post('/api/read', auth, async (req, res) => {
 // DELETE MESSAGE
 app.delete('/api/message/:id', auth, async (req, res) => {
   try {
-    const { everyone } = req.query;
+    const everyone = req.query.everyone === 'true';
     const r = await pool.query('SELECT from_user, chat_key FROM messages WHERE id=$1', [req.params.id]);
     if (!r.rows.length) return err(res, 'Не найдено', 404);
     if (r.rows[0].from_user !== req.username) return err(res, 'Нет прав', 403);
@@ -908,7 +911,7 @@ app.get('/api/messages', auth, async (req, res) => {
     } else {
       const r = await pool.query(
         `SELECT id, from_user as "from", from_dn as displayname, text, type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
-         FROM messages WHERE chat_key=$1 AND ts>$2 AND ts>$3 ORDER BY ts ASC LIMIT 100`,
+         FROM messages WHERE chat_key=$1 AND ts>$2 AND ts>$3 AND NOT deleted ORDER BY ts ASC LIMIT 100`,
           [key, sinceTs, hiddenAt]
       );
       rows = r.rows;
@@ -971,7 +974,7 @@ app.get('/api/poll', auth, async (req, res) => {
     // New messages
     const newMsgs = await pool.query(
       `SELECT id, from_user as "from", from_dn as displayname,
-              CASE WHEN type='text' OR deleted THEN text ELSE NULL END as text,
+              text,
               type, ts, deleted, read_at, reactions, file_name, file_size, reply_to, reply_preview, edited, pinned
        FROM messages WHERE chat_key=$1 AND ts>$2 ORDER BY ts ASC LIMIT 100`,
       [key, sinceTs]
@@ -1084,42 +1087,41 @@ app.get('/api/chats', auth, async (req, res) => {
 
     // ── Group chats ──
     const groupsR = await pool.query(
-      'SELECT cm.chat_id, c.name, c.avatar, c.created_at FROM chat_members cm JOIN chats c ON cm.chat_id=c.id WHERE cm.username=$1 ORDER BY cm.joined_at DESC',
-      [req.username]
+      `SELECT g.chat_id, g.name, g.avatar, g.created_at,
+              m.text as last_text, m.type as last_type, m.ts as last_ts, m.from_dn as last_from_dn, m.deleted as last_deleted,
+              (SELECT COUNT(*) FROM messages WHERE chat_key=groupKey(g.chat_id) AND NOT deleted AND read_at=0 AND from_user!=$2) as unread
+       FROM chat_members cm
+       JOIN chats g ON cm.chat_id=g.id
+       LEFT JOIN LATERAL (
+         SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key=groupKey(g.chat_id) ORDER BY ts DESC LIMIT 1
+       ) m ON true
+       WHERE cm.username=$1
+       ORDER BY COALESCE(m.ts, g.created_at) DESC`,
+      [req.username, req.username]
     );
     for (const g of groupsR.rows) {
       const gKey = groupKey(g.chat_id);
       if (seen.has(gKey)) continue;
       seen.add(gKey);
-      // Get last message
-      const lastR = await pool.query(
-        'SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key=$1 ORDER BY ts DESC LIMIT 1',
-        [gKey]
-      );
       let lastMessage = '';
       let lastTs = parseInt(g.created_at);
       let lastType = 'text';
-      if (lastR.rows.length) {
-        lastTs = parseInt(lastR.rows[0].ts);
-        lastType = lastR.rows[0].type;
-        if (lastR.rows[0].deleted) lastMessage = 'Удалено';
+      if (g.last_ts) {
+        lastTs = parseInt(g.last_ts);
+        lastType = g.last_type || 'text';
+        if (g.last_deleted) lastMessage = 'Удалено';
         else if (lastType === 'image') lastMessage = 'Фото';
         else if (lastType === 'video') lastMessage = 'Видео';
         else if (lastType === 'file') lastMessage = 'Файл';
         else if (lastType === 'voice') lastMessage = '🎤 Голосовое';
         else if (lastType === 'sticker') lastMessage = '🎨 Стикер';
         else if (lastType === 'poll') lastMessage = '📊 Опрос';
-        else if (lastType === 'system') lastMessage = lastR.rows[0].text;
+        else if (lastType === 'system') lastMessage = g.last_text;
         else {
-          const dn = lastR.rows[0].from_dn || '';
-          lastMessage = dn ? `${dn}: ${lastR.rows[0].text.slice(0, 40)}` : lastR.rows[0].text.slice(0, 40);
+          const dn = g.last_from_dn || '';
+          lastMessage = dn ? `${dn}: ${g.last_text.slice(0, 40)}` : g.last_text.slice(0, 40);
         }
       }
-      // Unread for groups
-      const unreadGR = await pool.query(
-        'SELECT COUNT(*) as cnt FROM messages WHERE chat_key=$1 AND NOT deleted AND read_at=0 AND from_user!=$2',
-        [gKey, req.username]
-      );
       chats.push({
         chatKey: gKey,
         groupId: g.chat_id,
@@ -1128,7 +1130,7 @@ app.get('/api/chats', auth, async (req, res) => {
         otherAvatar: g.avatar || null,
         lastMessage,
         lastTs,
-        unread: parseInt(unreadGR.rows[0].cnt) || 0,
+        unread: parseInt(g.unread) || 0,
         lastSeen: 0,
         isGroup: true
       });
@@ -1498,28 +1500,35 @@ app.post('/api/vote', auth, async (req, res) => {
   try {
     const { id, option } = req.body;
     if (id === undefined || option === undefined) return err(res, 'Нужен id и option');
-    const msg = await pool.query('SELECT text, type, chat_key FROM messages WHERE id=$1 AND type=$2 AND NOT deleted', [id, 'poll']);
-    if (!msg.rows.length) return err(res, 'Опрос не найден', 404);
-    let poll = { question: '', options: [], votes: [], multiple: false };
-    try { poll = JSON.parse(msg.rows[0].text); } catch (e) { return err(res, 'Повреждённый опрос'); }
-    if (option < 0 || option >= poll.options.length) return err(res, 'Некорректная опция');
-    if (!poll.multiple) {
-      for (const v of (poll.votes || [])) {
-        if (v.users) v.users = v.users.filter(u => u !== req.username);
+    // Use transaction with row lock to prevent race conditions
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const msg = await client.query('SELECT text, chat_key FROM messages WHERE id=$1 AND type=$2 AND NOT deleted FOR UPDATE', [id, 'poll']);
+      if (!msg.rows.length) { await client.query('ROLLBACK'); client.release(); return err(res, 'Опрос не найден', 404); }
+      let poll = { question: '', options: [], votes: [], multiple: false };
+      try { poll = JSON.parse(msg.rows[0].text); } catch (e) { await client.query('ROLLBACK'); client.release(); return err(res, 'Повреждённый опрос'); }
+      if (option < 0 || option >= poll.options.length) { await client.query('ROLLBACK'); client.release(); return err(res, 'Некорректная опция'); }
+      if (!poll.multiple) {
+        for (const v of (poll.votes || [])) {
+          if (v.users) v.users = v.users.filter(u => u !== req.username);
+        }
       }
-    }
-    if (!poll.votes) poll.votes = [];
-    if (!poll.votes[option]) poll.votes[option] = { option, users: [] };
-    if (!poll.votes[option].users) poll.votes[option].users = [];
-    const idx = poll.votes[option].users.indexOf(req.username);
-    if (idx >= 0) {
-      poll.votes[option].users.splice(idx, 1);
-    } else {
-      poll.votes[option].users.push(req.username);
-    }
-    await pool.query('UPDATE messages SET text=$1 WHERE id=$2', [JSON.stringify(poll), id]);
-    wsPushToChat(msg.rows[0].chat_key, req.username, { type: 'vote_update', id, poll }).catch(() => {});
-    ok(res, { ok: true, poll });
+      if (!poll.votes) poll.votes = [];
+      if (!poll.votes[option]) poll.votes[option] = { option, users: [] };
+      if (!poll.votes[option].users) poll.votes[option].users = [];
+      const idx = poll.votes[option].users.indexOf(req.username);
+      if (idx >= 0) {
+        poll.votes[option].users.splice(idx, 1);
+      } else {
+        poll.votes[option].users.push(req.username);
+      }
+      await client.query('UPDATE messages SET text=$1 WHERE id=$2', [JSON.stringify(poll), id]);
+      await client.query('COMMIT');
+      client.release();
+      wsPushToChat(msg.rows[0].chat_key, req.username, { type: 'vote_update', id, poll }).catch(() => {});
+      ok(res, { ok: true, poll });
+    } catch (e) { await client.query('ROLLBACK'); client.release(); throw e; }
   } catch (e) { err(res, e.message, 500); }
 });
 
