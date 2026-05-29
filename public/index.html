@@ -1200,7 +1200,8 @@
         .mw.group {
             margin-top: -7px;
         }
-        .mw.group .mav {
+        .mw.group .mav,
+        .mw.group .msg-sender-name {
             display: none !important;
         }
         .mw.group .bbl {
@@ -3751,6 +3752,10 @@
         .grp-mem-item .av { width:34px; height:34px; min-width:34px; font-size:11px; border-radius:50%; }
         .grp-mem-name { font-size:14px; font-weight:500; }
         .grp-mem-role { font-size:11px; color:var(--t3); }
+        .grp-mem-acts { display:flex; gap:4px; flex-shrink:0; }
+        .grp-mem-btn { background:var(--bg4); color:var(--t2); border-radius:6px; padding:3px 8px; font-size:12px; border:none; cursor:pointer; }
+        .grp-mem-btn.danger { color:var(--rd); }
+        .grp-mem-btn:hover { background:var(--bg3); }
         .grp-mem-actions { margin-left:auto; display:flex; gap:4px; }
         .grp-mem-actions button { background:var(--bg4); color:var(--t2); border-radius:6px; padding:4px 8px; font-size:11px; }
         .grp-info-actions { display:flex; flex-direction:column; gap:8px; margin-top:16px; }
@@ -8182,6 +8187,8 @@
                 if (!r.ok) return toast(d.error, 'err');
                 const g = d.group;
                 if (!g) return toast('Группа не найдена', 'err');
+                const myRole = d.members.find(m => m.username === me?.username)?.role || '';
+
                 let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
                     '<h2 style="margin:0">' + esc(g.name) + '</h2>' +
                     '<button style="background:none;color:var(--t3);font-size:18px;cursor:pointer" onclick="closeGrpInfo()">&times;</button></div>';
@@ -8191,14 +8198,23 @@
                     '<div class="grp-info-stat">Создана <b>' + fd(parseInt(g.created_at)) + '</b></div></div>';
                 html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px;font-weight:600">Участники</div>';
                 for (const m of d.members) {
+                    const canManage = (myRole === 'owner') || (myRole === 'admin' && m.role === 'member');
+                    const isSelf = m.username === me?.username;
                     html += '<div class="grp-mem-item"><div class="av av-' + avc(m.username) + '">' + ini(m.displayname) + '</div>' +
-                        '<div><div class="grp-mem-name">' + esc(m.displayname) + (m.username === me.username ? ' (Вы)' : '') + '</div>' +
-                        '<div class="grp-mem-role">' + (m.role === 'owner' ? 'Создатель' : m.role === 'admin' ? 'Админ' : 'Участник') + '</div></div></div>';
+                        '<div style="flex:1;min-width:0"><div class="grp-mem-name">' + esc(m.displayname) + (isSelf ? ' (Вы)' : '') + '</div>' +
+                        '<div class="grp-mem-role">' + (m.role === 'owner' ? 'Создатель' : m.role === 'admin' ? 'Админ' : 'Участник') + '</div></div>';
+                    if (canManage && !isSelf) {
+                        html += '<div class="grp-mem-acts">';
+                        if (myRole === 'owner') {
+                            html += '<button class="grp-mem-btn" onclick="grpMemberAction(\'' + g.id + '\',\'' + m.username + '\',\'' + (m.role === 'admin' ? 'member' : 'admin') + '\')" title="Сменить роль">' + (m.role === 'admin' ? '⬇' : '⬆') + '</button>';
+                        }
+                        html += '<button class="grp-mem-btn danger" onclick="grpMemberAction(\'' + g.id + '\',\'' + m.username + '\',\'kick\')" title="Кикнуть">✕</button>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
                 }
-                // Member actions (for owner/admins)
-                const myRole = d.members.find(m => m.username === me.username)?.role;
                 html += '<div class="grp-info-actions">';
-                if (myRole !== 'member') {
+                if (myRole && myRole !== 'member') {
                     html += '<button onclick="openGrpModal();addGrpMembersToExisting(\'' + g.id + '\')">Добавить участников</button>';
                 }
                 if (myRole !== 'owner') {
@@ -8208,6 +8224,20 @@
                 document.getElementById('grpInfoContent').innerHTML = html;
                 document.getElementById('grpInfo').classList.add('show');
             } catch (e) { toast('Ошибка', 'err'); }
+        }
+
+        async function grpMemberAction(gid, username, action) {
+            try {
+                const url = action === 'kick'
+                    ? '/api/groups/' + gid + '/members/' + username
+                    : '/api/groups/' + gid + '/members/' + username + '/role';
+                const body = action === 'kick' ? null : JSON.stringify({ role: action });
+                const r = await fetch(url, { method: action === 'kick' ? 'DELETE' : 'POST', headers: hdrs(), body });
+                const d = await r.json();
+                if (!r.ok) return toast(d.error || 'Ошибка', 'err');
+                toast('Готово');
+                openGrpInfo(); // Refresh
+            } catch (e) { toast('Ошибка сети', 'err'); }
         }
 
         function closeGrpInfo() { document.getElementById('grpInfo').classList.remove('show'); }
