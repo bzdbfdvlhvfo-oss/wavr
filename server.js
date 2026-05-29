@@ -458,6 +458,30 @@ app.get('/api/push/vapid-key', (req, res) => {
   ok(res, { publicKey: VAPID_PUBLIC_KEY || '' });
 });
 
+// REGISTER
+app.post('/api/register', regLimiter, async (req, res) => {
+  try {
+    let { username, password, displayname } = req.body;
+    username = (username || '').toLowerCase().trim();
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) return err(res, 'Username: a-z 0-9 _ (3-20 символов)');
+    if (!password || password.length < 6) return err(res, 'Пароль минимум 6 символов');
+    displayname = sanitize((displayname || username).slice(0, 40));
+    const ex = await pool.query('SELECT username FROM users WHERE username=$1', [username]);
+    if (ex.rows.length) return err(res, 'Username уже занят', 409);
+    const hash = await bcrypt.hash(password, 12);
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+    await pool.query(
+      'INSERT INTO users (username,displayname,password,reg_ip) VALUES ($1,$2,$3,$4)',
+      [username, displayname, hash, ip]
+    );
+    const ua = (req.headers['user-agent'] || '').slice(0, 200);
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = Date.now() + 30 * 24 * 3600 * 1000;
+    await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token, username, expires, ua]);
+    ok(res, { user: { username, displayname, avatar: null, bio: '', is_premium: false }, token });
+  } catch (e) { err(res, e.message, 500); }
+});
+
 // LOGIN
 app.post('/api/login', authLimiter, async (req, res) => {
   try {
@@ -465,10 +489,9 @@ app.post('/api/login', authLimiter, async (req, res) => {
     username = (username || '').toLowerCase().trim();
     if (!username || !password) return err(res, 'Заполните все поля');
     const r = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
-    if (!r.rows.length) return err(res, 'Пользователь не найден', 401);
     const u = r.rows[0];
+    if (!r.rows.length || !await bcrypt.compare(password, u.password)) return err(res, 'Неверный логин или пароль', 401);
     if (u.bio === '__BANNED__') return err(res, 'Аккаунт заблокирован', 403);
-    if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный пароль', 401);
     const existing = await pool.query('SELECT token FROM sessions WHERE username=$1 ORDER BY created_at ASC', [username]);
     if (existing.rows.length >= 3) {
       const toDelete = existing.rows.slice(0, existing.rows.length - 2);
@@ -1646,6 +1669,7 @@ app.post('/api/groups/:id/leave', auth, async (req, res) => {
     if (!mem.rows.length) return err(res, 'Вы не участник', 404);
     if (mem.rows[0].role === 'owner') return err(res, 'Создатель не может покинуть группу. Сначала передайте права.', 403);
     await pool.query('DELETE FROM chat_members WHERE chat_id=$1 AND username=$2', [id, req.username]);
+    groupMembersCache.delete(id);
     const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
     const dn = dnR.rows[0]?.displayname || req.username;
     const key = groupKey(id);
