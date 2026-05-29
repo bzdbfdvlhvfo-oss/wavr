@@ -17,7 +17,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason?.message || reason);
 });
 
-app.use(express.json({ limit: '25mb' }));
+  app.use(express.json({ limit: '3mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Security headers via helmet
@@ -64,7 +64,7 @@ app.use('/api/send', rateLimit({
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false }, // Railway managed PG uses self-signed certs
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000
@@ -78,6 +78,7 @@ async function initDB() {
       password    TEXT NOT NULL,
       avatar      TEXT,
       bio         TEXT DEFAULT '',
+      banned      BOOLEAN DEFAULT FALSE,
       reg_ip      TEXT DEFAULT 'unknown',
       created_at  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())*1000
     );
@@ -120,6 +121,8 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_key, ts);
     CREATE INDEX IF NOT EXISTS idx_sessions  ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_msg_from  ON messages(from_user);
+    CREATE INDEX IF NOT EXISTS idx_msg_to    ON messages(to_user);
   `);
 
   const migs = [
@@ -158,7 +161,8 @@ const ok = (res, d) => res.json(d);
 const err = (res, msg, s = 400) => res.status(s).json({ error: msg });
 const parseReactions = (raw) => { try { return JSON.parse(raw || '{}'); } catch (e) { return {}; } };
 const sanitize = (s) => s && typeof s === 'string' ? xss(s, { whiteList: {}, stripIgnoreTag: true }) : (s || '');
-const typeLabel = (type) => type === 'image' ? 'Фото' : type === 'video' ? 'Видео' : type === 'file' ? 'Файл' : type === 'voice' ? '🎤 Голосовое' : type === 'sticker' ? '🎨 Стикер' : type === 'poll' ? '📊 Опрос' : null;
+const TYPE_LABELS_SRV = { image: 'Фото', video: 'Видео', file: 'Файл', voice: '🎤 Голосовое', sticker: '🎨 Стикер', poll: '📊 Опрос' };
+const typeLabel = (type) => TYPE_LABELS_SRV[type] || '';
 
 const OWNER = process.env.WAVR_OWNER || 'timur';
 
@@ -291,6 +295,13 @@ function wsBroadcast(username, data) {
   }
 }
 
+function isUserWSOnline(username) {
+  const set = wsClients.get(username);
+  if (!set) return false;
+  for (const ws of set) if (ws.readyState === 1) return true;
+  return false;
+}
+
 // Helper to send push to chat participants (works for both private and group chats)
 async function wsPushToChat(chatKey, sender, data) {
   if (isGroupChat(chatKey)) {
@@ -298,7 +309,7 @@ async function wsPushToChat(chatKey, sender, data) {
     const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [gid]);
     for (const m of allMem.rows) {
       wsBroadcast(m.username, data);
-      if (m.username !== sender && (!wsClients.has(m.username) || ![...(wsClients.get(m.username) || [])].some(s => s.readyState === 1))) {
+      if (m.username !== sender && (!wsClients.has(m.username) || !isUserWSOnline(m.username))) {
         const pushPayload = {
           type: 'new_message',
           chatKey,
@@ -319,7 +330,7 @@ async function wsPushToChat(chatKey, sender, data) {
     }
     wsBroadcast(sender, data);
     for (const p of parts) {
-      if (p !== sender && (!wsClients.has(p) || ![...(wsClients.get(p) || [])].some(s => s.readyState === 1))) {
+      if (p !== sender && (!wsClients.has(p) || !isUserWSOnline(p))) {
         const pushPayload = {
           type: 'new_message',
           chatKey,
@@ -393,7 +404,7 @@ app.get('/api/search/messages', auth, async (req, res) => {
     for (const g of grpR.rows) chatKeys.push(groupKey(g.chat_id));
     if (!chatKeys.length) return ok(res, { messages: [] });
     // Search messages in those chats
-    const like = '%' + q.replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
+    const like = '%' + q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
     const msgR = await pool.query(
       `SELECT id, chat_key, from_user, from_dn, text, type, ts, file_name, file_size, reply_to, reply_preview, reactions, edited, deleted, read_at FROM messages WHERE chat_key = ANY($1) AND (LOWER(text) LIKE LOWER($2) OR LOWER(file_name) LIKE LOWER($2)) AND deleted = false ORDER BY ts DESC LIMIT 50`,
       [chatKeys, like]
@@ -435,7 +446,7 @@ app.get('/api/search/messages', auth, async (req, res) => {
 });
 
 app.get('/api/push/vapid-key', (req, res) => {
-  ok(res, { publicKey: VAPID_PUBLIC_KEY });
+  ok(res, { publicKey: VAPID_PUBLIC_KEY || '' });
 });
 
 async function sendPushNotification(username, payload) {
@@ -491,7 +502,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const r = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
     const u = r.rows[0];
     if (!r.rows.length || !await bcrypt.compare(password, u.password)) return err(res, 'Неверный логин или пароль', 401);
-    if (u.bio === '__BANNED__') return err(res, 'Аккаунт заблокирован', 403);
+    if (u.banned) return err(res, 'Аккаунт заблокирован', 403);
     const existing = await pool.query('SELECT token FROM sessions WHERE username=$1 ORDER BY created_at ASC', [username]);
     if (existing.rows.length >= 3) {
       const toDelete = existing.rows.slice(0, existing.rows.length - 2);
@@ -582,9 +593,10 @@ app.get('/api/search', auth, async (req, res) => {
   try {
     const q = sanitize((req.query.q || '').trim());
     if (!q) return ok(res, { users: [] });
+    const likeQ = '%' + q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
     const r = await pool.query(
       `SELECT username,displayname,avatar FROM users WHERE username!=$1 AND (username ILIKE $2 OR displayname ILIKE $2) LIMIT 10`,
-      [req.username, `%${q}%`]
+      [req.username, likeQ]
     );
     ok(res, { users: r.rows });
   } catch (e) { err(res, e.message, 500); }
@@ -664,7 +676,7 @@ app.post('/api/send', auth, async (req, res) => {
       for (const m of allMem.rows) wsBroadcast(m.username, payload);
       // Push for offline members
       for (const m of allMem.rows) {
-        if (m.username !== req.username && (!wsClients.has(m.username) || ![...(wsClients.get(m.username) || [])].some(s => s.readyState === 1))) {
+        if (m.username !== req.username && (!wsClients.has(m.username) || !isUserWSOnline(m.username))) {
           sendPushNotification(m.username, {
             type: 'new_message', chatKey: key, from: req.username, displayname: dn,
             text: msgType === 'sticker' ? '🎨 Стикер' : msgType === 'voice' ? '🎤 Голосовое' : msgType === 'image' ? '📷 Фото' : msgType === 'file' ? '📎 Файл' : (text || '').slice(0, 100),
@@ -962,6 +974,10 @@ app.get('/api/typing', auth, async (req, res) => {
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of typingMap) if (now - v.ts > 5000) typingMap.delete(k);
+  if (typingMap.size > 10000) {
+    const sorted = [...typingMap.entries()].sort((a, b) => a[1].ts - b[1].ts);
+    for (let i = 0; i < 1000 && i < sorted.length; i++) typingMap.delete(sorted[i][0]);
+  }
 }, 10000);
 
 // PING
@@ -1279,7 +1295,7 @@ app.get('/api/admin/check', auth, (req, res) => {
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT u.username, u.displayname, u.bio, u.reg_ip, u.created_at, u.is_premium,
+      `SELECT u.username, u.displayname, u.bio, u.banned, u.reg_ip, u.created_at, u.is_premium,
         (SELECT COUNT(*) FROM messages WHERE from_user=u.username) as msg_count,
         (SELECT COUNT(*) FROM sessions WHERE username=u.username) as session_count,
         (SELECT MAX(last_seen) FROM sessions WHERE username=u.username) as last_seen
@@ -1313,14 +1329,14 @@ app.post('/api/admin/ban/:username', auth, adminOnly, async (req, res) => {
   try {
     const u = req.params.username;
     if (u === OWNER) return err(res, 'Нельзя забанить владельца', 403);
-    await pool.query('UPDATE users SET bio=$1 WHERE username=$2', ['__BANNED__', u]);
+    await pool.query('UPDATE users SET banned=TRUE WHERE username=$1', [u]);
     await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
 app.post('/api/admin/unban/:username', auth, adminOnly, async (req, res) => {
   try {
-    await pool.query("UPDATE users SET bio='' WHERE username=$1", [req.params.username]);
+    await pool.query('UPDATE users SET banned=FALSE WHERE username=$1', [req.params.username]);
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1389,17 +1405,6 @@ app.post('/api/admin/broadcast', auth, adminOnly, async (req, res) => {
 });
 
 // In-memory rate limit fallback for IP-based limits
-const memRateLimitStore = new Map();
-setInterval(() => { const now = Date.now(); for (const [k, v] of memRateLimitStore) if (now > v.r) memRateLimitStore.delete(k); }, 300000);
-function memRateLimit(key, max, ms) {
-  const now = Date.now();
-  const e = memRateLimitStore.get(key) || { n: 0, r: now + ms };
-  if (now > e.r) { e.n = 0; e.r = now + ms; }
-  e.n++;
-  memRateLimitStore.set(key, e);
-  return e.n > max;
-}
-
 // ── Groups ──
 function genId() { return crypto.randomBytes(12).toString('base64url'); }
 
