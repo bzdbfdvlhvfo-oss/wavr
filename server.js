@@ -154,6 +154,8 @@ async function initDB() {
   console.log('DB ready');
 }
 const _initPromise = initDB();
+// Periodic session cleanup every hour
+setInterval(() => { pool.query('DELETE FROM sessions WHERE expires_at < $1', [Date.now()]).catch(() => {}); }, 3600000);
 
 // ── Helpers ──
 const chatKey = (a, b) => [a, b].sort().join(':');
@@ -173,6 +175,7 @@ const LAST_SEEN_THROTTLE_MS = 60000;
 // Auth cache: token -> { username, expires_at } with 60s TTL to avoid DB on every request
 const _authCache = new Map();
 const AUTH_CACHE_TTL = 60000;
+setInterval(() => { const now = Date.now(); for (const [k, v] of _authCache) if (now - v.ts > AUTH_CACHE_TTL * 2) _authCache.delete(k); }, 300000);
 
 function adminOnly(req, res, next) {
   if (req.username !== OWNER) return err(res, 'Нет прав', 403);
@@ -191,6 +194,8 @@ async function auth(req, res, next) {
       return err(res, 'Сессия истекла', 401);
     }
     req.username = cached.username;
+    const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [cached.username]);
+    if (banCheck.rows[0]?.banned) { _authCache.delete(t); return err(res, 'Аккаунт заблокирован', 403); }
     const lastSeen = _lastSeenThrottle.get(t);
     if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
       _lastSeenThrottle.set(t, now);
@@ -205,6 +210,8 @@ async function auth(req, res, next) {
     await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
     return err(res, 'Сессия истекла', 401);
   }
+  const banCheck2 = await pool.query('SELECT banned FROM users WHERE username=$1', [sess.username]);
+  if (banCheck2.rows[0]?.banned) { await pool.query('DELETE FROM sessions WHERE token=$1', [t]); return err(res, 'Аккаунт заблокирован', 403); }
   _authCache.set(t, { username: sess.username, expires_at: parseInt(sess.expires_at || 0), ts: now });
   req.username = sess.username;
   const lastSeen = _lastSeenThrottle.get(t);
@@ -242,6 +249,8 @@ wss.on('connection', (ws, req) => {
           const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [msg.token]);
           if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
           username = r.rows[0].username;
+          const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
+          if (banCheck.rows[0]?.banned) { console.log('WS auth fail: banned user ' + username); ws.close(4003, 'Account banned'); return; }
           console.log('WS connected: ' + username);
           ws.username = username;
           ws._authed = true;
@@ -403,7 +412,7 @@ app.post('/api/push/unsubscribe', auth, async (req, res) => {
 // ── Search messages ──
 app.get('/api/search/messages', auth, async (req, res) => {
   try {
-    const q = (req.query.q || '').trim();
+    const q = (Array.isArray(req.query.q) ? req.query.q[0] : (req.query.q || '')).trim();
     if (!q || q.length < 2) return ok(res, { messages: [] });
     const username = req.username;
     // Find all chat keys for private chats
@@ -474,10 +483,6 @@ async function sendPushNotification(username, payload) {
     }
   }
 }
-
-app.get('/api/push/vapid-key', (req, res) => {
-  ok(res, { publicKey: VAPID_PUBLIC_KEY || '' });
-});
 
 // REGISTER
 app.post('/api/register', regLimiter, async (req, res) => {
@@ -576,7 +581,7 @@ app.post('/api/profile', auth, async (req, res) => {
           await client.query('UPDATE chat_hidden SET username=$1 WHERE username=$2', [nu, req.username]);
           await client.query('UPDATE chat_archived SET username=$1 WHERE username=$2', [nu, req.username]);
           await client.query('UPDATE blocked SET username=$1 WHERE username=$2', [nu, req.username]);
-          await client.query('UPDATE blocked SET blocked_username=$1 WHERE blocked_username=$2', [nu, req.username]);
+          await client.query('UPDATE blocked SET blocked=$1 WHERE blocked=$2', [nu, req.username]);
           await client.query('UPDATE push_subscriptions SET username=$1 WHERE username=$2', [nu, req.username]);
           await client.query('UPDATE users SET username=$1,displayname=$2,bio=$3,avatar=$4 WHERE username=$5',
             [nu, dn, sanitize((bio || '').slice(0, 200)), avatar || null, req.username]);
@@ -601,7 +606,7 @@ app.post('/api/profile', auth, async (req, res) => {
 // SEARCH
 app.get('/api/search', auth, async (req, res) => {
   try {
-    const q = sanitize((req.query.q || '').trim());
+    const q = sanitize((Array.isArray(req.query.q) ? req.query.q[0] : (req.query.q || '')).trim());
     if (!q) return ok(res, { users: [] });
     const likeQ = '%' + q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
     const r = await pool.query(
@@ -923,8 +928,9 @@ app.post('/api/pin/:id', auth, async (req, res) => {
     // Check access for both private and group chats
     if (isGroupChat(key)) {
       const gid = groupIdFromKey(key);
-      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
+      const mem = await pool.query('SELECT role FROM chat_members WHERE chat_id=$1 AND username=$2', [gid, req.username]);
       if (!mem.rows.length) return err(res, 'Нет прав', 403);
+      if (mem.rows[0].role === 'member') return err(res, 'Только админы могут закреплять', 403);
     } else {
       const parts = key.split(':');
       if (!parts.includes(req.username)) return err(res, 'Нет прав', 403);
@@ -1344,6 +1350,8 @@ app.post('/api/admin/kick/:username', auth, adminOnly, async (req, res) => {
     const u = req.params.username;
     if (u === OWNER) return err(res, 'Нельзя кикнуть владельца', 403);
     await pool.query('DELETE FROM sessions WHERE username=$1', [u]);
+    const userSockets = wsClients.get(u);
+    if (userSockets) { for (const ws of userSockets) try { ws.terminate(); } catch(e) {} wsClients.delete(u); }
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1716,6 +1724,7 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 
 const PORT = process.env.PORT || 3000;
 _initPromise.then(() => {
+  server.on('error', (e) => { console.error('Server error:', e.message); process.exit(1); });
   server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
 }).catch(e => {
   console.error('FATAL: DB init failed, exiting', e);
