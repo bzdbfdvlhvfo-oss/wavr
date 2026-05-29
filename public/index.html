@@ -6371,7 +6371,7 @@
             if (replyToId) body.replyTo = replyToId;
 
             // Try WebSocket first for instant delivery
-            if (_ws && _ws.readyState === 1 && _ws._authenticated) {
+            if (_ws && _ws.readyState === 1) {
                 try { _ws.send(JSON.stringify({ type: 'send', ...body })); } catch (e) {}
                 // Fallback timeout: if no ack in 2s, use REST
                 const wsTimeout = setTimeout(() => { _sendViaREST(tmpId, body); }, 2000);
@@ -7861,16 +7861,13 @@
             if (_wsReconn) { clearTimeout(_wsReconn); _wsReconn = null; }
             try {
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${proto}//${location.host}/ws`;
+                const wsUrl = `${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`;
                 _ws = new WebSocket(wsUrl);
             } catch (e) { console.log('WS: constructor error', e.message); scheduleReconnect(); return; }
 
             _ws.onopen = () => {
-                console.log('WS: sending auth');
-                try { _ws.send(JSON.stringify({ type: 'auth', token })); } catch (e) {}
-                // connected event comes from server after auth
+                console.log('WS: opened, waiting for auth...');
             };
-            _ws._authenticated = false;
 
             _ws.onclose = (ev) => {
                 console.log('WS: closed code=' + ev.code + ' reason=' + (ev.reason||''));
@@ -7890,7 +7887,6 @@
                     const d = JSON.parse(e.data);
                     if (d.type === 'connected') {
                         console.log('WS: authenticated!');
-                        _ws._authenticated = true;
                         _wsConnected = true;
                         document.getElementById('csInd').classList.add('on');
                         document.getElementById('offlineBar').style.display = 'none';

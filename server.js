@@ -227,67 +227,42 @@ const wsClients = new Map(); // username → Set<WebSocket>
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws, req) => {
-  console.log('WS connection attempt from ' + (req.headers['x-forwarded-for'] || req.socket.remoteAddress));
-  let authTimeout, username;
+  const params = new URL(req.url, 'http://localhost').searchParams;
+  const token = params.get('token');
+  if (!token) { ws.close(4001, 'No token'); return; }
 
-  const authTimer = setTimeout(() => {
-    console.log('WS auth timeout: no auth message received');
-    ws.close(4001, 'Auth timeout');
-  }, 5000);
+  (async () => {
+    const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
+    if (!r.rows.length) { ws.close(4001, 'Invalid token'); return; }
+    const username = r.rows[0].username;
+    const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
+    if (banCheck.rows[0]?.banned) { ws.close(4003, 'Account banned'); return; }
 
-  ws._authed = false;
-  ws.on('message', (data) => {
-    if (!ws._authed) {
+    ws.username = username;
+    const set = wsClients.get(username);
+    if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
+    ws.isAlive = true;
+
+    ws.on('pong', () => { ws.isAlive = true; });
+    ws.on('close', () => {
+      const set = wsClients.get(username);
+      if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
+    });
+    ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
+    ws.on('message', (data) => {
       try {
         const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
-        if (msg.type !== 'auth' || !msg.token) {
-          ws.close(4001, 'Auth required as first message');
-          return;
+        if (msg.type === 'send') {
+          handleSend(username, msg).then(result => {
+            try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, ...result })); } catch (e) {}
+          }).catch(() => {});
         }
-        clearTimeout(authTimer);
-        (async () => {
-          const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [msg.token]);
-          if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
-          username = r.rows[0].username;
-          const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
-          if (banCheck.rows[0]?.banned) { console.log('WS auth fail: banned user ' + username); ws.close(4003, 'Account banned'); return; }
-          console.log('WS connected: ' + username);
-          ws.username = username;
-          ws._authed = true;
+      } catch (e) {}
+    });
 
-          const set = wsClients.get(username);
-          if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
-          ws.isAlive = true;
-
-          setupWSHandlers(ws, username);
-          try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
-        })();
-      } catch (e) {
-        ws.close(4001, 'Invalid JSON');
-      }
-    }
-    // Post-auth messages ignored by server (it only pushes, doesn't receive)
-  });
+    try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
+  })();
 });
-
-function setupWSHandlers(ws, username) {
-  ws.on('pong', () => { ws.isAlive = true; });
-  ws.on('close', () => {
-    const set = wsClients.get(username);
-    if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
-  });
-  ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
-      if (msg.type === 'send') {
-        handleSend(username, msg).then(result => {
-          try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, ...result })); } catch (e) {}
-        }).catch(() => {});
-      }
-    } catch (e) { /* ignore non-JSON messages */ }
-  });
-}
 
 // WebSocket heartbeat every 30s
 setInterval(() => {
