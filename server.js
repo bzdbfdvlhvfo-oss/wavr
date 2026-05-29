@@ -625,23 +625,32 @@ async function handleSend(username, body) {
 
   const isGroup = !!chat;
   let key, recipient;
+  // Parallel: auth checks + displayname fetch
+  const [dnResult, authResult] = await Promise.all([
+    pool.query('SELECT displayname FROM users WHERE username=$1', [username]),
+    isGroup
+      ? Promise.all([
+          pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']),
+          pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, username])
+        ])
+      : pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, username])
+  ]);
+
+  if (!dnResult.rows.length) return { error: 'Пользователь не найден', status: 404 };
+  const dn = dnResult.rows[0].displayname;
+
   if (isGroup) {
-    const g = await pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']);
-    if (!g.rows.length) return { error: 'Группа не найдена', status: 404 };
-    const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, username]);
-    if (!mem.rows.length) return { error: 'Вы не участник группы', status: 403 };
+    const [gRes, memRes] = authResult;
+    if (!gRes.rows.length) return { error: 'Группа не найдена', status: 404 };
+    if (!memRes.rows.length) return { error: 'Вы не участник группы', status: 403 };
     key = groupKey(chat);
     recipient = chat;
   } else {
-    const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, username]);
-    if (blk.rows.length) return { error: 'Пользователь заблокировал вас', status: 403 };
+    if (authResult.rows.length) return { error: 'Пользователь заблокировал вас', status: 403 };
     key = chatKey(username, to);
     recipient = to;
   }
 
-  const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [username]);
-  if (!ur.rows.length) return { error: 'Пользователь не найден', status: 404 };
-  const dn = ur.rows[0].displayname;
   const ts = Date.now();
   const storeText = msgType === 'text' ? sanitize(text.trim()) : typeof text === 'string' ? sanitize(text) : text;
 

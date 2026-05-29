@@ -974,7 +974,7 @@
         @keyframes areaFadeIn {
             from {
                 opacity: 0;
-                transform: translateY(6px);
+                transform: translateX(12px);
             }
 
             to {
@@ -2951,7 +2951,9 @@
         .pm-stat-card {
             flex: 1; text-align: center; padding: 8px 4px;
             border-radius: 10px;
+            transition: background .15s;
         }
+        .pm-stat-card:hover { background: rgba(255,255,255,.03); }
         .pm-stat-card .pm-stat-n {
             font-size: 17px; font-weight: 700; font-family: 'DM Mono', monospace;
             background: var(--acg); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
