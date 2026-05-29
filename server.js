@@ -195,8 +195,9 @@ async function auth(req, res, next) {
       return err(res, 'Сессия истекла', 401);
     }
     req.username = cached.username;
-    const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [cached.username]);
-    if (banCheck.rows[0]?.banned) { _authCache.delete(t); return err(res, 'Аккаунт заблокирован', 403); }
+    try { const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [cached.username]);
+      if (banCheck.rows[0]?.banned) { _authCache.delete(t); return err(res, 'Аккаунт заблокирован', 403); }
+    } catch (e) { /* column may not exist yet, skip */ }
     const lastSeen = _lastSeenThrottle.get(t);
     if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
       _lastSeenThrottle.set(t, now);
@@ -211,8 +212,9 @@ async function auth(req, res, next) {
     await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
     return err(res, 'Сессия истекла', 401);
   }
-  const banCheck2 = await pool.query('SELECT banned FROM users WHERE username=$1', [sess.username]);
-  if (banCheck2.rows[0]?.banned) { await pool.query('DELETE FROM sessions WHERE token=$1', [t]); return err(res, 'Аккаунт заблокирован', 403); }
+  try { const banCheck2 = await pool.query('SELECT banned FROM users WHERE username=$1', [sess.username]);
+    if (banCheck2.rows[0]?.banned) { await pool.query('DELETE FROM sessions WHERE token=$1', [t]); return err(res, 'Аккаунт заблокирован', 403); }
+  } catch (e) { /* column may not exist yet, skip */ }
   _authCache.set(t, { username: sess.username, expires_at: parseInt(sess.expires_at || 0), ts: now });
   req.username = sess.username;
   const lastSeen = _lastSeenThrottle.get(t);
@@ -236,8 +238,9 @@ wss.on('connection', (ws, req) => {
     const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
     if (!r.rows.length) { ws.close(4001, 'Invalid token'); return; }
     const username = r.rows[0].username;
-    const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
-    if (banCheck.rows[0]?.banned) { ws.close(4003, 'Account banned'); return; }
+    try { const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
+      if (banCheck.rows[0]?.banned) { ws.close(4003, 'Account banned'); return; }
+    } catch (e) { /* column may not exist yet, skip */ }
 
     ws.username = username;
     const set = wsClients.get(username);
@@ -442,6 +445,11 @@ app.get('/api/search/messages', auth, async (req, res) => {
 
 app.get('/api/push/vapid-key', (req, res) => {
   ok(res, { publicKey: VAPID_PUBLIC_KEY || '' });
+});
+
+app.get('/health', async (req, res) => {
+  try { await pool.query('SELECT 1'); ok(res, { status: 'ok', db: true }); }
+  catch (e) { res.status(503).json({ status: 'error', db: false }); }
 });
 
 async function sendPushNotification(username, payload) {
