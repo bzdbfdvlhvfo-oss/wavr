@@ -6179,8 +6179,11 @@
             const ph = pick.offsetHeight, pw = pick.offsetWidth;
             pick.style.display = 'none'; pick.style.visibility = '';
             const rect = btnEl.getBoundingClientRect();
-            let top = rect.top - ph - 8; if (top < 8) top = rect.bottom + 8;
-            let left = rect.left; if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8; if (left < 8) left = 8;
+            const vw = window.visualViewport || window;
+            const maxW = (vw.width || window.innerWidth) - 8;
+            const maxH = (vw.height || window.innerHeight) - 8;
+            let top = rect.top - ph - 8; if (top < 8) top = rect.bottom + 8; if (top + ph > maxH) top = maxH - ph;
+            let left = rect.left; if (left + pw > maxW) left = maxW - pw; if (left < 8) left = 8;
             pick.style.top = top + 'px'; pick.style.left = left + 'px'; pick.style.display = 'block';
         }
         function closePicker() { document.getElementById('epick').style.display = 'none'; _pickerMsgId = null; }
@@ -7606,7 +7609,7 @@
                 if (mw.querySelector('img')) preview = 'Фото';
                 else if (mw.querySelector('video')) preview = 'Видео';
             }
-            startReply(parseInt(_ctxMsgId), fromName, preview);
+            startReply(_ctxMsgId, fromName, preview);
             closeCtxMenu();
         });
         document.getElementById('ctx-react').addEventListener('click', () => {
