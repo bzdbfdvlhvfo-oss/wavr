@@ -1227,17 +1227,20 @@
             align-items: center;
             justify-content: flex-end;
             gap: 4px;
-            margin-top: 3px;
+            margin-top: -10px;
+            height: 14px;
+            padding: 0 6px;
         }
+        .mw:not(.me) .mfoot { justify-content: flex-start; padding-left: 8px; }
 
         .mtime {
             font-size: 10px;
-            opacity: .4;
+            opacity: .45;
             font-family: 'DM Mono', monospace;
             letter-spacing: .02em;
         }
         .mw.me .mtime {
-            opacity: .5;
+            opacity: .55;
         }
 
         .mtick {
@@ -3879,7 +3882,7 @@
             <span class="spin" style="width:28px;height:28px;border-width:3px"></span>
         </div>
         <!-- Offline banner -->
-        <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:rgba(240,80,80,.95);color:#fff;text-align:center;padding:6px 16px;font-size:12px;font-weight:500;backdrop-filter:blur(8px)">Нет соединения. Переподключение…</div>
+        <div id="offlineBar" style="display:none;position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9998;background:rgba(30,35,45,.96);color:var(--t2);text-align:center;padding:6px 18px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid rgba(255,255,255,.06);box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:none;transition:opacity .3s">Подключение…</div>
         <div class="layout">
 
             <!-- SIDEBAR -->
@@ -7841,7 +7844,7 @@
                 _wsConnected = false;
                 document.getElementById('csInd').classList.remove('on');
                 _ws = null;
-                if (_wsRetries >= 2) document.getElementById('offlineBar').style.display = 'block';
+                if (_wsRetries >= 5) document.getElementById('offlineBar').style.display = 'block';
                 scheduleReconnect();
             };
 
