@@ -2010,36 +2010,35 @@
         }
 
         .ibar {
-            padding: 8px 12px;
+            padding: 6px 10px;
             display: flex;
             align-items: flex-end;
-            gap: 9px;
-            border-top: 1px solid rgba(255,255,255,.05);
-            background: rgba(8, 8, 24, .88);
+            gap: 6px;
+            border-top: 1px solid rgba(255,255,255,.04);
+            background: var(--bg2);
             flex-shrink: 0;
-            min-height: 52px;
-            box-shadow: 0 -1px 12px rgba(0,0,0,.15);
+            min-height: 48px;
         }
 
         .minp {
             flex: 1;
-            padding: 10px 14px;
+            padding: 9px 14px;
             background: var(--bg3);
-            border: 1.5px solid transparent;
-            border-radius: 20px;
+            border: 2px solid transparent;
+            border-radius: 22px;
             color: var(--t1);
-            font-size: 14px;
+            font-size: 15px;
             resize: none;
-            max-height: 110px;
-            line-height: 1.5;
-            transition: border-color .2s, background .2s, box-shadow .2s;
+            max-height: 100px;
+            line-height: 1.45;
+            transition: border-color .2s, background .2s;
             caret-color: var(--ac);
         }
 
         .minp:focus {
             border-color: var(--ac);
-            background: rgba(51, 144, 236, .06);
-            box-shadow: 0 0 0 3px rgba(51, 144, 236, .12), 0 0 16px rgba(51, 144, 236, .08);
+            background: rgba(51, 144, 236, .04);
+            outline: none;
         }
 
         .minp::placeholder {
@@ -4787,9 +4786,15 @@
             resetPollIntervals();
         });
 
-        async function enterApp() {
+        async         function enterApp() {
             document.getElementById('auth').style.display = 'none';
             document.getElementById('app').style.display = 'block';
+
+            // Auto-hide loading overlay after 12s regardless
+            setTimeout(() => {
+                const ov = document.getElementById('loadingOverlay');
+                if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(() => { ov.style.display = 'none'; }, 370); }
+            }, 12000);
 
             // Check admin status from server
             try {
@@ -5227,6 +5232,7 @@
 
         async function loadChats() {
             try {
+                loadChats._retried = false;
                 // Show skeleton on very first load
                 const el = document.getElementById('clist');
                 if (_lastChatsJson === null && !el.querySelector('.ci')) {
@@ -5271,12 +5277,17 @@
                 if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(() => { ov.style.display = 'none'; }, 370); }
             } catch (e) {
                 if (e.status === 401) throw e;
+                // Hide loading overlay on error
+                const ov = document.getElementById('loadingOverlay');
+                if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(() => { ov.style.display = 'none'; }, 370); }
+                // Auto-retry once
+                if (!loadChats._retried) { loadChats._retried = true; setTimeout(() => { _lastChatsJson = null; loadChats(); }, 2000); return; }
                 // Show error state in chat list
                 const el = document.getElementById('clist');
                 const errDiv = el.querySelector('.clist-err');
                 if (!errDiv) {
                     const d = document.createElement('div'); d.className = 'clist-err';
-                    d.innerHTML = '<div style="text-align:center;padding:24px 16px;color:var(--t3);font-size:13px"><div style="margin-bottom:8px">⚠️</div><div>Ошибка загрузки</div><a href="#" onclick="event.preventDefault();_lastChatsJson=null;loadChats();return false" style="color:var(--ac);font-size:12px;margin-top:8px;display:inline-block">Повторить</a></div>';
+                    d.innerHTML = '<div style="text-align:center;padding:24px 16px;color:var(--t3);font-size:13px"><div style="margin-bottom:8px">⚠️</div><div>Ошибка загрузки</div><a href="#" onclick="event.preventDefault();loadChats._retried=false;_lastChatsJson=null;loadChats();return false" style="color:var(--ac);font-size:12px;margin-top:8px;display:inline-block">Повторить</a></div>';
                     el.appendChild(d);
                 }
             }
