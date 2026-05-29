@@ -5221,7 +5221,7 @@
 
         function invalidateChats() {
             _lastChatsJson = null;
-            if (!_loadChatsTid) _loadChatsTid = setTimeout(() => { _loadChatsTid = null; loadChats(); }, 100);
+            if (!_loadChatsTid) _loadChatsTid = setTimeout(() => { _loadChatsTid = null; loadChats(); }, 500);
         }
 
         function showChat() {
@@ -7874,6 +7874,8 @@
                 _wsConnected = false;
                 document.getElementById('csInd').classList.remove('on');
                 _ws = null;
+                // Auth failure - kick to login instead of reconnecting
+                if (ev.code === 4001) { handleErr({ status: 401, message: '401' }); return; }
                 if (_wsRetries >= 5) document.getElementById('offlineBar').style.display = 'block';
                 scheduleReconnect();
             };
@@ -7935,7 +7937,7 @@
                         if (d.type === 'message' && d.from !== me.username) {
                             playNotifSound();
                         }
-                        _lastChatsJson = null;
+                        invalidateChats();
                         return;
                     }
                     if (d.type === 'edit') {
@@ -8014,12 +8016,7 @@
                         return;
                     }
                     if (d.type === 'members_added' || d.type === 'member_removed') {
-                        _lastChatsJson = null;
-                        if (chatWith && chatWith.chatKey === d.chatKey) {
-                            if (_chatPollBusy) return;
-                            _chatPollBusy = true; _chatPollStuckTs = Date.now();
-                            doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
-                        }
+                        invalidateChats();
                         return;
                     }
                     if (d.type === 'role_changed') {
