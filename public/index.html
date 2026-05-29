@@ -75,11 +75,11 @@
             line-height: 1.5;
         }
 
-        ::-webkit-scrollbar { width: 3px; height: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--br2); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
         * { scrollbar-width: thin; scrollbar-color: var(--br2) transparent; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--br2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
 
         button {
             font-family: inherit;
@@ -358,12 +358,6 @@
         /* ══════════════════════════════════════════
    SIDEBAR
 ══════════════════════════════════════════ */
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--br2); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
-
         .sb {
             width: 295px;
             min-width: 295px;
@@ -4507,7 +4501,7 @@
             { id: 'space', name: 'Космос', stickers: ['🚀', '🛸', '🛰️', '👽', '🤖', '🌍', '🌙', '☀️', '⭐', '🌌', '🪐', '👾'] },
         ];
         const AVC = [0, 1, 2, 3, 4, 5];
-        const OWNER = 'timur';
+        let _isOwner = false, _ownerUsername = '';
 
         /* ════════════════════════════════════════
            UTILS
@@ -4704,7 +4698,7 @@
             try {
                 const r = await fetch('/api/login', { method: 'POST', headers: hdrs(), body: JSON.stringify({ username: u, password: p }) });
                 const d = await r.json(); if (!r.ok) throw new Error(d.error);
-                me = d.user; token = d.token; saveSession(); enterApp();
+                me = d.user; token = d.token; saveSession(); await enterApp();
             } catch (e) { el.textContent = e.message; }
             finally { btn.disabled = false; btn.textContent = 'Войти'; }
         }
@@ -4720,7 +4714,7 @@
             try {
                 const r = await fetch('/api/register', { method: 'POST', headers: hdrs(), body: JSON.stringify({ username: u, password: p, displayname: dn }) });
                 const d = await r.json(); if (!r.ok) throw new Error(d.error);
-                me = d.user; token = d.token; saveSession(); enterApp();
+                me = d.user; token = d.token; saveSession(); await enterApp();
             } catch (e) { el.textContent = e.message; }
             finally { btn.disabled = false; btn.textContent = 'Создать аккаунт'; }
         }
@@ -4760,9 +4754,17 @@
             resetPollIntervals();
         });
 
-        function enterApp() {
+        async function enterApp() {
             document.getElementById('auth').style.display = 'none';
             document.getElementById('app').style.display = 'block';
+
+            // Check admin status from server
+            try {
+                const r = await fetch('/api/admin/check', { headers: hdrs() });
+                const d = await r.json();
+                _isOwner = !!d.isOwner;
+                _ownerUsername = d.owner || '';
+            } catch (e) { _isOwner = false; _ownerUsername = ''; }
 
             // Set my avatar
             const myav = document.getElementById('myav');
@@ -4774,7 +4776,7 @@
             document.getElementById('mydn').textContent = me.displayname;
             document.getElementById('myun').textContent = '@' + me.username;
             // Admin button — explicit show/hide each time
-            document.getElementById('adminBtn').style.display = (me.username === OWNER) ? 'flex' : 'none';
+            document.getElementById('adminBtn').style.display = _isOwner ? 'flex' : 'none';
 
             // Reset state
             _chatPollBusy = false; _chatsBusy = false;
@@ -4983,7 +4985,7 @@
                 setAv(myav, me.avatar, avc(me.username), me.displayname);
                 myav.classList.add('av-on');
                 document.getElementById('mydn').textContent = me.displayname;
-                document.getElementById('adminBtn').style.display = (me.username === OWNER) ? 'flex' : 'none';
+                document.getElementById('adminBtn').style.display = _isOwner ? 'flex' : 'none';
                 updatePMHeader();
                 closePM();
                 toast('Профиль сохранён <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"/></svg>');
@@ -5660,19 +5662,17 @@
                     const maxTs = Math.max(...fresh.map(m => m.ts));
                     if (maxTs > lastTs) lastTs = maxTs;
 
-                    // Remove optimistic fake bubbles that got confirmed by server
+                    // Remove the optimistic fake bubble that got confirmed by server
                     fresh.forEach(m => {
                         if (m.from === me.username && !m.deleted) {
-                            if (m.type === 'text') {
-                                document.querySelectorAll('[data-id^="t"]').forEach(node => {
+                            const fakes = document.querySelectorAll('[data-id^="t"]');
+                            for (const node of fakes) {
+                                if (m.type === 'text') {
                                     const bbl = node.querySelector('.bbl');
-                                    if (!bbl) return;
-                                    if (bbl.textContent.trim() === (m.text || '').trim()) node.remove();
-                                });
-                            } else {
-                                document.querySelectorAll('[data-id^="t"]').forEach(node => {
-                                    if (node.querySelector('.img-slot, .vid-slot, .file-slot')) node.remove();
-                                });
+                                    if (bbl && bbl.textContent.trim() === (m.text || '').trim()) { node.remove(); break; }
+                                } else if (node.querySelector('.img-slot, .vid-slot, .file-slot, .voice-slot')) {
+                                    node.remove(); break;
+                                }
                             }
                         }
                     });
@@ -6898,7 +6898,7 @@
         ════════════════════════════════════════ */
         let _adminTab = 'stats';
         async function openAdmin() {
-            if (!me || me.username !== OWNER) return;
+            if (!me || !_isOwner) return;
             document.getElementById('adminPanel').style.display = 'flex';
             loadAdminStats();
             switchAdminTab('stats');
@@ -6957,7 +6957,7 @@
             if (!users?.length) { body.innerHTML = '<div style="color:var(--t3);padding:18px;text-align:center">Пусто</div>'; return; }
             users.forEach(u => {
                 const isBanned = u.bio === '__BANNED__';
-                const isOwner = u.username === OWNER;
+                const isOwner = u.username === _ownerUsername;
                 const isOnline = u.last_seen && (Date.now() - u.last_seen < 5 * 60 * 1000);
                 const row = document.createElement('div'); row.className = 'auser';
                 const av = document.createElement('div');
@@ -7688,8 +7688,8 @@
            PATCH enterApp to start ping + request push
         ════════════════════════════════════════ */
         const _origEnterApp = enterApp;
-        enterApp = function () {
-            _origEnterApp();
+        enterApp = async function () {
+            await _origEnterApp();
             applyAccent();
             applyWallpaper();
             applySettings();
@@ -7936,8 +7936,8 @@
 
         // Patch enterApp to connect WS, patch doLogout to disconnect
         const _origEnterApp2 = enterApp;
-        enterApp = function () {
-            try { _origEnterApp2(); } catch(e) { console.error('enterApp error:', e); }
+        enterApp = async function () {
+            try { await _origEnterApp2(); } catch(e) { console.error('enterApp error:', e); }
             connectWS();
         };
         const _origDoLogout2 = doLogout;
@@ -8004,7 +8004,7 @@
 
         try {
             const sv = localStorage.getItem('wavr_s');
-            if (sv) { const s = JSON.parse(sv); me = s.me; token = s.token; enterApp(); if (s.chatWith) { chatWith = s.chatWith; showChat(); } }
+            if (sv) { const s = JSON.parse(sv); me = s.me; token = s.token; (async () => { await enterApp(); if (s.chatWith) { chatWith = s.chatWith; showChat(); } })(); }
         } catch (e) { localStorage.removeItem('wavr_s'); }
 
         /* ════════════════════════════════════════

@@ -15,7 +15,6 @@ const server = http.createServer(app);
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason?.message || reason);
-  process.exit(1);
 });
 
 app.use(express.json({ limit: '25mb' }));
@@ -145,6 +144,7 @@ async function initDB() {
     `CREATE TABLE IF NOT EXISTS chat_hidden (username TEXT NOT NULL, chat_key TEXT NOT NULL, hidden_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000), PRIMARY KEY (username, chat_key))`,
     `CREATE TABLE IF NOT EXISTS blocked (username TEXT NOT NULL, blocked TEXT NOT NULL, ts BIGINT, PRIMARY KEY (username, blocked))`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (username TEXT NOT NULL, endpoint TEXT, auth TEXT, p256dh TEXT, PRIMARY KEY (username))`,
+    `CREATE TABLE IF NOT EXISTS chat_archived (username TEXT NOT NULL, chat_key TEXT NOT NULL, archived_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())*1000), PRIMARY KEY (username, chat_key))`,
   ];
   for (const m of migs) { try { await pool.query(m); } catch (e) { console.error('Migration error:', e.message); } }
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { console.error('Session cleanup error:', e.message); }
@@ -337,9 +337,12 @@ app.get('/api/stickers', (req, res) => {
 
 // ── Push notifications ──
 const webpush = require('web-push');
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BL-zheSXvNqX0nAiuYTcyBENVJ3qEkUi8G3Qq02pmPfvpSwV6j6WKgmBn6sXvprdGCU6oHt_-zSbK_225J6XIfg';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'foJ9jSjo2mQCg37E8Jq9Mhkddn6PXjK-M9KsvhJlbs8';
-webpush.setVapidDetails('mailto:support@wavr.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:support@wavr.app';
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 app.post('/api/push/subscribe', auth, async (req, res) => {
   try {
@@ -389,8 +392,8 @@ app.get('/api/search/messages', auth, async (req, res) => {
     if (privKeys.length) {
       const others = privKeys.map(k => k.replace(username + ':', '').replace(':' + username, '')).filter(u => u !== username);
       if (others.length) {
-        const ph = others.map((_, i) => '$' + (i + 2)).join(',');
-        const ur = await pool.query(`SELECT username, displayname FROM users WHERE username IN (${ph})`, ['dummy', ...others]);
+        const ph = others.map((_, i) => '$' + (i + 1)).join(',');
+        const ur = await pool.query(`SELECT username, displayname FROM users WHERE username IN (${ph})`, others);
         for (const u of ur.rows) {
           for (const k of privKeys) {
             if (k.includes(u.username) && !chatNameMap[k]) chatNameMap[k] = u.displayname;
@@ -426,45 +429,15 @@ async function sendPushNotification(username, payload) {
     await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 86400 });
   } catch (e) {
     // if subscription is expired, clean it
-    if (e.statusCode === 410) {
-      try { await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [username]); } catch (e2) {}
+      if (e.statusCode === 410) {
+        try { await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [username]); } catch (e2) {}
+      }
     }
   }
 }
 
-// ── Poll tracking ──
-const pollTs = new Map(); // `${username}:${chatKey}` → lastPollTimestamp (server-side)
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of pollTs) if (now - v > 120000) pollTs.delete(k);
-}, 60000);
-
-// ── Routes ──
-
-// REGISTER
-app.post('/api/register', regLimiter, async (req, res) => {
-  try {
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
-    let { username, password, displayname } = req.body;
-    username = (username || '').toLowerCase().trim();
-    displayname = (displayname || '').trim();
-    if (!username || !password || !displayname) return err(res, 'Заполните все поля');
-    if (!/^[a-z0-9_]{3,20}$/.test(username)) return err(res, 'Username: a-z 0-9 _ (3-20 символов)');
-    if (password.length < 6) return err(res, 'Пароль минимум 6 символов');
-    if (displayname.length > 50) return err(res, 'Имя слишком длинное');
-    displayname = sanitize(displayname);
-    const ipCnt = await pool.query('SELECT COUNT(*) FROM users WHERE reg_ip=$1', [ip]);
-    if (parseInt(ipCnt.rows[0].count) >= 3) return err(res, 'Максимум 3 аккаунта с одного IP', 403);
-    const ex = await pool.query('SELECT username FROM users WHERE username=$1', [username]);
-    if (ex.rows.length) return err(res, 'Username уже занят', 409);
-    const hash = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username,displayname,password,reg_ip) VALUES ($1,$2,$3,$4)', [username, displayname, hash, ip]);
-    const ua = (req.headers['user-agent'] || '').slice(0, 200);
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = Date.now() + 30 * 24 * 3600 * 1000;
-    await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token, username, expires, ua]);
-    ok(res, { user: { username, displayname }, token });
-  } catch (e) { err(res, e.message, 500); }
+app.get('/api/push/vapid-key', (req, res) => {
+  ok(res, { publicKey: VAPID_PUBLIC_KEY || '' });
 });
 
 // LOGIN
@@ -721,7 +694,7 @@ app.post('/api/read', auth, async (req, res) => {
     }
     const now = Date.now();
     const upd = await pool.query(
-      `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user!=$3 AND to_user!=$3 AND NOT deleted AND read_at=0 RETURNING id`,
+      `UPDATE messages SET read_at=$1 WHERE chat_key=$2 AND from_user!=$3 AND NOT deleted AND read_at=0 RETURNING id`,
       [now, key, req.username]
     );
     // Batch push read updates via WS
@@ -1156,11 +1129,11 @@ app.get('/api/chats', auth, async (req, res) => {
     const groupsR = await pool.query(
       `SELECT g.chat_id, g.name, g.avatar, g.created_at,
               m.text as last_text, m.type as last_type, m.ts as last_ts, m.from_dn as last_from_dn, m.deleted as last_deleted,
-              (SELECT COUNT(*) FROM messages WHERE chat_key=groupKey(g.chat_id) AND NOT deleted AND read_at=0 AND from_user!=$2) as unread
+              (SELECT COUNT(*) FROM messages WHERE chat_key='group:' || g.chat_id AND NOT deleted AND read_at=0 AND from_user!=$2) as unread
        FROM chat_members cm
        JOIN chats g ON cm.chat_id=g.id
        LEFT JOIN LATERAL (
-         SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key=groupKey(g.chat_id) ORDER BY ts DESC LIMIT 1
+         SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key='group:' || g.chat_id ORDER BY ts DESC LIMIT 1
        ) m ON true
        WHERE cm.username=$1
        ORDER BY COALESCE(m.ts, g.created_at) DESC`,
@@ -1242,6 +1215,9 @@ app.post('/api/sessions/revoke-others', auth, async (req, res) => {
 });
 
 // ADMIN
+app.get('/api/admin/check', auth, (req, res) => {
+  ok(res, { isOwner: req.username === OWNER, owner: OWNER });
+});
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try {
     const r = await pool.query(
@@ -1603,20 +1579,18 @@ app.post('/api/vote', auth, async (req, res) => {
 });
 
 // ── Archived chats ──
-const archivedChats = new Map();
 
 app.get('/api/archived', auth, async (req, res) => {
   try {
-    const archived = [...(archivedChats.get(req.username) || new Set())];
-    ok(res, { archived });
+    const r = await pool.query('SELECT chat_key FROM chat_archived WHERE username=$1', [req.username]);
+    ok(res, { archived: r.rows.map(row => row.chat_key) });
   } catch (e) { err(res, e.message, 500); }
 });
 
 app.post('/api/archive/:chatKey', auth, async (req, res) => {
   try {
     const ck = decodeURIComponent(req.params.chatKey);
-    if (!archivedChats.has(req.username)) archivedChats.set(req.username, new Set());
-    archivedChats.get(req.username).add(ck);
+    await pool.query('INSERT INTO chat_archived (username, chat_key) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.username, ck]);
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
@@ -1624,7 +1598,7 @@ app.post('/api/archive/:chatKey', auth, async (req, res) => {
 app.delete('/api/archive/:chatKey', auth, async (req, res) => {
   try {
     const ck = decodeURIComponent(req.params.chatKey);
-    if (archivedChats.has(req.username)) archivedChats.get(req.username).delete(ck);
+    await pool.query('DELETE FROM chat_archived WHERE username=$1 AND chat_key=$2', [req.username, ck]);
     ok(res, { ok: true });
   } catch (e) { err(res, e.message, 500); }
 });
