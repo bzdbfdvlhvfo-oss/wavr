@@ -2035,7 +2035,6 @@
         .minp:focus {
             border-color: var(--ac);
             background: rgba(51, 144, 236, .06);
-            box-shadow: 0 0 0 3px rgba(51,144,236,.12);
             box-shadow: 0 0 0 3px rgba(51, 144, 236, .12), 0 0 16px rgba(51, 144, 236, .08);
         }
 
@@ -2972,6 +2971,10 @@
         .pm-panels { }
         .pm-panel { display: none; }
         .pm-panel.on { display: block; animation: fadeIn .15s ease; }
+
+        .pm-swipe-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; margin-top: 4px; }
+        .pm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--t4); transition: all .2s; }
+        .pm-dot.on { width: 18px; border-radius: 3px; background: var(--ac); }
 
         .pm-field { margin-bottom: 13px; }
         .pm-lbl { display: block; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--t3); margin-bottom: 6px; }
@@ -4268,9 +4271,9 @@
             </div>
             <div class="pm-body">
                 <div class="pm-tabs">
-                    <button class="pm-tab on" data-tab="edit"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль</button>
-                    <button class="pm-tab" data-tab="theme"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>Тема</button>
-                    <button class="pm-tab" data-tab="sessions"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Сессии</button>
+                    <button class="pm-tab on" data-tab="edit" onclick="profTab('edit')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль</button>
+                    <button class="pm-tab" data-tab="theme" onclick="profTab('theme')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>Оформление</button>
+                    <button class="pm-tab" data-tab="sessions" onclick="profTab('sessions')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Сессии</button>
                 </div>
                 <div class="pm-panels">
                     <div class="pm-panel on" id="pmPanelEdit">
@@ -4319,6 +4322,11 @@
                         </div>
                         <button class="pm-danger" onclick="revokeOtherSessions()">Выйти на всех устройствах</button>
                     </div>
+                </div>
+                <div class="pm-swipe-dots">
+                    <span class="pm-dot on" data-tab="edit"></span>
+                    <span class="pm-dot" data-tab="theme"></span>
+                    <span class="pm-dot" data-tab="sessions"></span>
                 </div>
             </div>
         </div>
@@ -4851,16 +4859,33 @@
         let _newAv = null;
         let _curProfTab = 'edit';
 
+        const _tabOrder = ['edit', 'theme', 'sessions'];
+
         function profTab(tab) {
             _curProfTab = tab;
             document.querySelectorAll('.pm-panel').forEach(p => p.classList.toggle('on', p.id === 'pmPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)));
             document.querySelectorAll('.pm-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+            document.querySelectorAll('.pm-dot').forEach(d => d.classList.toggle('on', d.dataset.tab === tab));
             if (tab === 'sessions') loadSessions();
             if (tab === 'theme') initThemeTab();
         }
 
+        let _pmSwipeX = 0;
+        function _pmTouchStart(e) { _pmSwipeX = (e.touches || [{}])[0].clientX || 0; }
+        function _pmTouchEnd(e) {
+            const dx = ((e.changedTouches || [{}])[0].clientX || 0) - _pmSwipeX;
+            if (Math.abs(dx) < 40) return;
+            const idx = _tabOrder.indexOf(_curProfTab);
+            if (dx < 0 && idx < _tabOrder.length - 1) profTab(_tabOrder[idx + 1]);
+            if (dx > 0 && idx > 0) profTab(_tabOrder[idx - 1]);
+        }
+
         function openPM() {
             document.body.style.overflow = 'hidden';
+            // Swipe listeners
+            const panels = document.querySelector('.pm-panels');
+            panels.addEventListener('touchstart', _pmTouchStart, { passive: true });
+            panels.addEventListener('touchend', _pmTouchEnd, { passive: true });
             profTab('edit');
             _newAv = null;
             document.getElementById('pmdn2').value = me.displayname || '';
@@ -4908,7 +4933,12 @@
             if (me.is_premium) { pb.classList.add('show'); } else { pb.classList.remove('show'); }
         }
 
-        function closePM() { document.getElementById('pm').style.display = 'none'; document.body.style.overflow = ''; }
+        function closePM() {
+            document.getElementById('pm').style.display = 'none'; document.body.style.overflow = '';
+            const panels = document.querySelector('.pm-panels');
+            panels.removeEventListener('touchstart', _pmTouchStart);
+            panels.removeEventListener('touchend', _pmTouchEnd);
+        }
 
         function initThemeTab() {
             const curColor = localStorage.getItem('wavr_accent') || '#3390ec';
