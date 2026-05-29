@@ -429,9 +429,8 @@ async function sendPushNotification(username, payload) {
     await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 86400 });
   } catch (e) {
     // if subscription is expired, clean it
-      if (e.statusCode === 410) {
-        try { await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [username]); } catch (e2) {}
-      }
+    if (e.statusCode === 410) {
+      try { await pool.query(`DELETE FROM push_subscriptions WHERE username=$1`, [username]); } catch (e2) {}
     }
   }
 }
