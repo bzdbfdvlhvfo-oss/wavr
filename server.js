@@ -1186,13 +1186,13 @@ app.get('/api/chats', auth, async (req, res) => {
 
     // ── Group chats ──
     const groupsR = await pool.query(
-      `SELECT g.chat_id, g.name, g.avatar, g.created_at,
+      `SELECT g.id as chat_id, g.name, g.avatar, g.created_at,
               m.text as last_text, m.type as last_type, m.ts as last_ts, m.from_dn as last_from_dn, m.deleted as last_deleted,
-              (SELECT COUNT(*) FROM messages WHERE chat_key='group:' || g.chat_id AND NOT deleted AND read_at=0 AND from_user!=$2) as unread
+              (SELECT COUNT(*) FROM messages WHERE chat_key='group:' || g.id AND NOT deleted AND read_at=0 AND from_user!=$2) as unread
        FROM chat_members cm
        JOIN chats g ON cm.chat_id=g.id
        LEFT JOIN LATERAL (
-         SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key='group:' || g.chat_id ORDER BY ts DESC LIMIT 1
+         SELECT text, type, ts, from_dn, deleted FROM messages WHERE chat_key='group:' || g.id ORDER BY ts DESC LIMIT 1
        ) m ON true
        WHERE cm.username=$1
        ORDER BY COALESCE(m.ts, g.created_at) DESC`,
