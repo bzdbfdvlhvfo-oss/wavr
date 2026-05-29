@@ -5405,7 +5405,6 @@
             _chatReady = true;
             loadDraft();
             markRead(username);
-            _lastChatsJson = null;
             loadChats();
             marea.addEventListener('scroll', _mareaScrollHandler);
         }
@@ -5455,7 +5454,6 @@
             _chatReady = true;
             loadDraft();
             markReadGroup(groupId);
-            _lastChatsJson = null;
             loadChats();
             marea.addEventListener('scroll', _mareaScrollHandler);
         }
@@ -5663,15 +5661,18 @@
                     if (maxTs > lastTs) lastTs = maxTs;
 
                     // Remove the optimistic fake bubble that got confirmed by server
+                    const fakes = document.querySelectorAll('[data-id^="t"]');
+                    const fakeArr = Array.from(fakes);
                     fresh.forEach(m => {
                         if (m.from === me.username && !m.deleted) {
-                            const fakes = document.querySelectorAll('[data-id^="t"]');
-                            for (const node of fakes) {
+                            for (let i = 0; i < fakeArr.length; i++) {
+                                const node = fakeArr[i];
+                                if (!node.parentNode) continue;
                                 if (m.type === 'text') {
                                     const bbl = node.querySelector('.bbl');
-                                    if (bbl && bbl.textContent.trim() === (m.text || '').trim()) { node.remove(); break; }
+                                    if (bbl && bbl.textContent.trim() === (m.text || '').trim()) { node.remove(); fakeArr.splice(i, 1); break; }
                                 } else if (node.querySelector('.img-slot, .vid-slot, .file-slot, .voice-slot')) {
-                                    node.remove(); break;
+                                    node.remove(); fakeArr.splice(i, 1); break;
                                 }
                             }
                         }
@@ -5681,7 +5682,7 @@
 
                     if (fresh.some(m => m.from !== me.username)) {
                         markRead(chatWith.username);
-                        _lastChatsJson = null;
+                        invalidateChats();
                     }
                 }
 
@@ -6303,12 +6304,7 @@
                     seenIds.add(d.id);
                     const el = document.querySelector(`[data-id="${tmpId}"]`);
                     if (el) { el.dataset.id = d.id; }
-                    _lastChatsJson = null;
-                    loadChats();
-                    if (!_chatPollBusy && !_wsConnected) {
-                        _chatPollBusy = true; _chatPollStuckTs = Date.now();
-                        doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; });
-                    }
+                    invalidateChats();
                     saveDraft();
                 } else {
                     const el = document.querySelector(`[data-id="${tmpId}"]`);
