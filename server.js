@@ -224,34 +224,36 @@ wss.on('connection', (ws, req) => {
     ws.close(4001, 'Auth timeout');
   }, 5000);
 
-  ws.on('message', function onAuth(data) {
-    try {
-      const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
-      if (msg.type !== 'auth' || !msg.token) {
-        ws.close(4001, 'Auth required as first message');
-        return;
+  ws._authed = false;
+  ws.on('message', (data) => {
+    if (!ws._authed) {
+      try {
+        const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
+        if (msg.type !== 'auth' || !msg.token) {
+          ws.close(4001, 'Auth required as first message');
+          return;
+        }
+        clearTimeout(authTimer);
+        (async () => {
+          const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [msg.token]);
+          if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
+          username = r.rows[0].username;
+          console.log('WS connected: ' + username);
+          ws.username = username;
+          ws._authed = true;
+
+          const set = wsClients.get(username);
+          if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
+          ws.isAlive = true;
+
+          setupWSHandlers(ws, username);
+          try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
+        })();
+      } catch (e) {
+        ws.close(4001, 'Invalid JSON');
       }
-      clearTimeout(authTimer);
-      // Validate token asynchronously
-      (async () => {
-        const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [msg.token]);
-        if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
-        username = r.rows[0].username;
-        console.log('WS connected: ' + username);
-        ws.username = username;
-
-        const set = wsClients.get(username);
-        if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
-        ws.isAlive = true;
-
-        // Remove auth handler, replace with normal message handler
-        ws.removeListener('message', onAuth);
-        setupWSHandlers(ws, username);
-        try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
-      })();
-    } catch (e) {
-      ws.close(4001, 'Invalid JSON');
     }
+    // Post-auth messages ignored by server (it only pushes, doesn't receive)
   });
 });
 
@@ -262,10 +264,6 @@ function setupWSHandlers(ws, username) {
     if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
   });
   ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
-  ws.on('message', (data) => {
-    // Normal message handling - received push events from server
-    // The client handles these based on the current chat context
-  });
 }
 
 // WebSocket heartbeat every 30s
