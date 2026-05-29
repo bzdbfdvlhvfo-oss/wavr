@@ -2095,6 +2095,15 @@
             100% { box-shadow: 0 2px 16px rgba(124, 111, 247, .35); }
         }
 
+        @media (max-width:480px) {
+            .ibar { padding:6px 8px; gap:5px; min-height:44px; }
+            .mbtn { width:34px; height:34px; min-width:34px; }
+            .mbtn svg { width:14px; height:14px; }
+            .sbtn { width:34px; height:34px; min-width:34px; }
+            .sbtn svg { width:14px; height:14px; }
+            .minp { padding:7px 10px; font-size:14px; max-height:80px; }
+            #epick, #spick { backdrop-filter: none; -webkit-backdrop-filter: none; }
+        }
         .mbtn {
             width: 40px;
             height: 40px;
@@ -5098,18 +5107,18 @@
 
         async function doSearch(q) {
             const el = document.getElementById('sres');
+            el.style.display = 'block';
+            el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--t3)">Поиск…</div>';
             try {
                 const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers: hdrs() });
                 const d = await r.json();
                 el.innerHTML = '';
                 if (!d.users?.length) {
-                    el.style.display = 'block';
                     const div = document.createElement('div');
                     div.style.cssText = 'padding:10px 14px;font-size:13px;color:var(--t3)';
                     div.textContent = 'Не найдено';
                     el.appendChild(div); return;
                 }
-                el.style.display = 'block';
                 d.users.forEach(u => {
                     if (u.avatar) _avCache[u.username] = u.avatar;
                     _userDnCache[u.username] = u.displayname;
@@ -5132,7 +5141,9 @@
                     row.appendChild(avEl); row.appendChild(info);
                     el.appendChild(row);
                 });
-            } catch (e) { }
+            } catch (e) {
+                el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--t3)">Ошибка поиска</div>';
+            }
         }
 
         document.getElementById('sres').addEventListener('click', e => {
@@ -5201,7 +5212,17 @@
                 // Скрываем загрузочный экран при первом ответе
                 const ov = document.getElementById('loadingOverlay');
                 if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(() => { ov.style.display = 'none'; }, 370); }
-            } catch (e) { if (e.status === 401) throw e; }
+            } catch (e) {
+                if (e.status === 401) throw e;
+                // Show error state in chat list
+                const el = document.getElementById('clist');
+                const errDiv = el.querySelector('.clist-err');
+                if (!errDiv) {
+                    const d = document.createElement('div'); d.className = 'clist-err';
+                    d.innerHTML = '<div style="text-align:center;padding:24px 16px;color:var(--t3);font-size:13px"><div style="margin-bottom:8px">⚠️</div><div>Ошибка загрузки</div><a href="#" onclick="event.preventDefault();_lastChatsJson=null;loadChats();return false" style="color:var(--ac);font-size:12px;margin-top:8px;display:inline-block">Повторить</a></div>';
+                    el.appendChild(d);
+                }
+            }
         }
 
         function notifyMsg(username, displayname, text) {
@@ -5546,7 +5567,7 @@
                 const q = chatWith.isGroup
                     ? `chat=${encodeURIComponent(chatWith.groupId || chatWith.username)}`
                     : `b=${encodeURIComponent(chatWith.username)}`;
-                const r = await fetch(`/api/messages?${q}&since=0`, { headers: hdrs() });
+                const r = await fetch(`/api/messages?${q}&before=${Date.now() + 86400000}`, { headers: hdrs() });
                 if (r.status === 401) { const e = new Error('401'); e.status = 401; throw e; }
                 const d = await r.json();
                 const msgs = d.messages || [];
@@ -6168,11 +6189,13 @@
             }
         }
 
-        document.addEventListener('mousedown', e => {
+        function onDocDownSp(e) {
             if (!e.target.closest('#spick') && !e.target.closest('#stickerBtn')) {
                 document.getElementById('spick').style.display = 'none';
             }
-        });
+        }
+        document.addEventListener('mousedown', onDocDownSp);
+        document.addEventListener('touchstart', onDocDownSp, { passive: true });
 
         document.getElementById('epinp').addEventListener('keydown', e => {
             if (e.key === 'Enter') {
@@ -6180,9 +6203,11 @@
                 if (v && _pickerMsgId != null) { doReact(_pickerMsgId, v); closePicker(); }
             }
         });
-        document.addEventListener('mousedown', e => {
+        function onDocDown(e) {
             if (!e.target.closest('#epick') && !e.target.closest('[data-picker-btn]')) closePicker();
-        });
+        }
+        document.addEventListener('mousedown', onDocDown);
+        document.addEventListener('touchstart', onDocDown, { passive: true });
 
         async function doReact(msgId, emoji) {
             if (!emoji || !msgId) return;
@@ -6749,7 +6774,11 @@
             updateMsgSearchCount();
         }
         // Wire search events
-        document.getElementById('msgSearchInput').addEventListener('input', doMsgSearch);
+        let _msgSearchTimer;
+        document.getElementById('msgSearchInput').addEventListener('input', () => {
+            clearTimeout(_msgSearchTimer);
+            _msgSearchTimer = setTimeout(doMsgSearch, 150);
+        });
         document.getElementById('msgSearchClose').addEventListener('click', closeMsgSearch);
         document.getElementById('msgSearchUp').addEventListener('click', () => msgSearchNav(-1));
         document.getElementById('msgSearchDown').addEventListener('click', () => msgSearchNav(1));
@@ -8125,7 +8154,7 @@
            VOICE MESSAGES
         ════════════════════════════════════════ */
         var _isRecording = false;
-        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null;
+        let mediaRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimer = null, _voiceMime = 'audio/webm';
 
         function toggleVoice() {
             if (_isRecording) { stopVoice(); }
@@ -8134,9 +8163,21 @@
 
         function startVoice() {
             if (!navigator.mediaDevices) return toast('Микрофон не поддерживается', 'err');
+            if (!window.MediaRecorder) return toast('Запись не поддерживается браузером', 'err');
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 voiceChunks = [];
-                mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
+                const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac', ''];
+                let mimeType = '';
+                for (const mt of mimeTypes) {
+                    if (!mt || MediaRecorder.isTypeSupported(mt)) { mimeType = mt; break; }
+                }
+                try {
+                    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                } catch (e) {
+                    stream.getTracks().forEach(t => t.stop());
+                    return toast('Формат аудио не поддерживается', 'err');
+                }
+                _voiceMime = mimeType || 'audio/webm';
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) voiceChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
                     stream.getTracks().forEach(t => t.stop());
@@ -8144,7 +8185,7 @@
                     document.getElementById('voiceBar').classList.remove('show');
                     document.getElementById('micBtn').classList.remove('active');
                     if (voiceChunks.length) {
-                        const blob = new Blob(voiceChunks, { type: 'audio/webm' });
+                        const blob = new Blob(voiceChunks, { type: _voiceMime });
                         const reader = new FileReader();
                         reader.onload = () => sendVoice(reader.result);
                         reader.readAsDataURL(blob);
