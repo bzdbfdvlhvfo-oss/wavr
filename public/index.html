@@ -4549,6 +4549,8 @@
           const m = { pdf: S.pdf, doc: S.doc, docx: S.doc, xls: S.sheet, xlsx: S.sheet, zip: S.zip, rar: S.zip, mp3: S.audio, wav: S.audio, mp4: S.video, webm: S.video, mov: S.video };
           return m[ext] || S.file;
         }
+        const TYPE_LABELS = { image: '📷 Фото', video: '🎬 Видео', file: '📎 Файл', sticker: '🎨 Стикер', voice: '🎤 Голосовое', poll: '📊 Опрос', system: '📢' };
+        function typeLabel(t) { return TYPE_LABELS[t] || ''; }
         function deviceSvg(ua) {
           if (/Mobile|Android|iPhone|iPad/i.test(ua)) return S.mobile;
           if (/Windows/i.test(ua)) return S.monitor;
@@ -5482,6 +5484,7 @@
             saveDraft();
             chatWith = null; cancelReply();
             _chatReady = false;
+            document.getElementById('marea').removeEventListener('scroll', _mareaScrollHandler);
             document.getElementById('cmain').style.display = 'none';
             document.getElementById('nochat').style.display = 'flex';
             document.getElementById('app').classList.remove('co');
@@ -5722,7 +5725,7 @@
                     const cur = items[i];
                     if (!prev.dataset.from || !cur.dataset.from) continue;
                     if (prev.dataset.from === cur.dataset.from && parseInt(cur.dataset.ts) - parseInt(prev.dataset.ts) < 300000) {
-                        prev.classList.add('group');
+                        cur.classList.add('group');
                     }
                 }
             });
@@ -7746,7 +7749,7 @@
             WEB SOCKET CLIENT
         ════════════════════════════════════════ */
         let _ws = null, _wsConnected = false;
-        let _wsReconn = null;
+        let _wsReconn = null, _wsRetries = 0;
 
         function connectWS() {
             if (!token) { console.log('WS: no token, skipping'); return; }
@@ -7754,18 +7757,16 @@
             if (_wsReconn) { clearTimeout(_wsReconn); _wsReconn = null; }
             try {
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`;
-                console.log('WS: connecting to', wsUrl.substring(0, 80));
+                const wsUrl = `${proto}//${location.host}/ws`;
                 _ws = new WebSocket(wsUrl);
             } catch (e) { console.log('WS: constructor error', e.message); scheduleReconnect(); return; }
 
             _ws.onopen = () => {
-                console.log('WS: connected!');
-                _wsConnected = true;
-                document.getElementById('csInd').classList.add('on');
-                document.getElementById('offlineBar').style.display = 'none';
-                _wsRetries = 0;
+                console.log('WS: sending auth');
+                try { _ws.send(JSON.stringify({ type: 'auth', token })); } catch (e) {}
+                // connected event comes from server after auth
             };
+            _ws._authenticated = false;
 
             _ws.onclose = (ev) => {
                 console.log('WS: closed code=' + ev.code + ' reason=' + (ev.reason||''));
@@ -7781,7 +7782,15 @@
             _ws.onmessage = (e) => {
                 try {
                     const d = JSON.parse(e.data);
-                    if (d.type === 'connected') return;
+                    if (d.type === 'connected') {
+                        console.log('WS: authenticated!');
+                        _ws._authenticated = true;
+                        _wsConnected = true;
+                        document.getElementById('csInd').classList.add('on');
+                        document.getElementById('offlineBar').style.display = 'none';
+                        _wsRetries = 0;
+                        return;
+                    }
                     if (d.type === 'message' || d.type === 'group_created') {
                         if (chatWith && d.type === 'message') {
                             const myCk = chatWith.isGroup ? (chatWith.chatKey || 'group:' + (chatWith.groupId || chatWith.username)) : [me.username, chatWith.username].sort().join(':');
@@ -8229,7 +8238,6 @@
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.dataset.id = d.id;
                     invalidateChats();
-                    if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
                 } else {
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.remove();
@@ -8293,7 +8301,6 @@
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.dataset.id = d.id;
                     invalidateChats();
-                    if (!_chatPollBusy) { _chatPollBusy = true; _chatPollStuckTs = Date.now(); doPoll().catch(handleErr).finally(() => { _chatPollBusy = false; }); }
                 } else {
                     const el = document.querySelector(`[data-id="t${tmpTs}"]`);
                     if (el) el.remove();

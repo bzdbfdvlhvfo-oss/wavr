@@ -150,7 +150,7 @@ async function initDB() {
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { console.error('Session cleanup error:', e.message); }
   console.log('DB ready');
 }
-initDB().catch(console.error);
+const _initPromise = initDB();
 
 // ── Helpers ──
 const chatKey = (a, b) => [a, b].sort().join(':');
@@ -216,36 +216,57 @@ const wsClients = new Map(); // username → Set<WebSocket>
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws, req) => {
-  const params = new URL(req.url, 'http://localhost').searchParams;
-  const token = params.get('token');
-  console.log('WS connection attempt, token=' + (token ? token.slice(0,8)+'…' : 'none'));
-  if (!token) { ws.close(4001, 'No token'); return; }
+  console.log('WS connection attempt from ' + (req.headers['x-forwarded-for'] || req.socket.remoteAddress));
+  let authTimeout, username;
 
-  (async () => {
-    const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
-    if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
-    const username = r.rows[0].username;
-    console.log('WS connected: ' + username);
-    ws.username = username;
+  const authTimer = setTimeout(() => {
+    console.log('WS auth timeout: no auth message received');
+    ws.close(4001, 'Auth timeout');
+  }, 5000);
 
-    const set = wsClients.get(username);
-    if (set) {
-      set.add(ws);
-    } else {
-      wsClients.set(username, new Set([ws]));
+  ws.on('message', function onAuth(data) {
+    try {
+      const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
+      if (msg.type !== 'auth' || !msg.token) {
+        ws.close(4001, 'Auth required as first message');
+        return;
+      }
+      clearTimeout(authTimer);
+      // Validate token asynchronously
+      (async () => {
+        const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [msg.token]);
+        if (!r.rows.length) { console.log('WS auth fail: invalid token'); ws.close(4001, 'Invalid token'); return; }
+        username = r.rows[0].username;
+        console.log('WS connected: ' + username);
+        ws.username = username;
+
+        const set = wsClients.get(username);
+        if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
+        ws.isAlive = true;
+
+        // Remove auth handler, replace with normal message handler
+        ws.removeListener('message', onAuth);
+        setupWSHandlers(ws, username);
+        try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
+      })();
+    } catch (e) {
+      ws.close(4001, 'Invalid JSON');
     }
-    ws.isAlive = true;
-
-    ws.on('pong', () => { ws.isAlive = true; });
-    ws.on('close', () => {
-      const set = wsClients.get(username);
-      if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
-    });
-    ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
-
-    try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) { console.log('WS send error: ' + (e?.message || e)); }
-  })().catch((e) => { console.log('WS auth exception: ' + (e?.message || e)); try { ws.close(4001, 'Auth failed'); } catch(e2){} });
+  });
 });
+
+function setupWSHandlers(ws, username) {
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('close', () => {
+    const set = wsClients.get(username);
+    if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
+  });
+  ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
+  ws.on('message', (data) => {
+    // Normal message handling - received push events from server
+    // The client handles these based on the current chat context
+  });
+}
 
 // WebSocket heartbeat every 30s
 setInterval(() => {
@@ -497,18 +518,34 @@ app.post('/api/profile', auth, async (req, res) => {
       if (nu !== req.username) {
         const ex = await pool.query('SELECT username FROM users WHERE username=$1', [nu]);
         if (ex.rows.length) return err(res, 'Username уже занят', 409);
-        await pool.query('UPDATE messages SET from_user=$1 WHERE from_user=$2', [nu, req.username]);
-        await pool.query('UPDATE messages SET to_user=$1   WHERE to_user=$2', [nu, req.username]);
-        await pool.query('UPDATE messages SET from_dn=$1  WHERE from_user=$2', [dn, nu]);
-        await pool.query('UPDATE sessions  SET username=$1 WHERE username=$2', [nu, req.username]);
-        const rows = await pool.query('SELECT DISTINCT chat_key FROM messages WHERE from_user=$1 OR to_user=$1', [nu]);
-        for (const row of rows.rows) {
-          const nk = row.chat_key.split(':').map(p => p === req.username ? nu : p).sort().join(':');
-          if (nk !== row.chat_key) await pool.query('UPDATE messages SET chat_key=$1 WHERE chat_key=$2', [nk, row.chat_key]);
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('UPDATE messages SET from_user=$1 WHERE from_user=$2', [nu, req.username]);
+          await client.query('UPDATE messages SET to_user=$1   WHERE to_user=$2', [nu, req.username]);
+          await client.query('UPDATE messages SET from_dn=$1  WHERE from_user=$2', [dn, nu]);
+          await client.query('UPDATE sessions  SET username=$1 WHERE username=$2', [nu, req.username]);
+          const rows = await client.query('SELECT DISTINCT chat_key FROM messages WHERE from_user=$1 OR to_user=$1', [nu]);
+          for (const row of rows.rows) {
+            const nk = row.chat_key.split(':').map(p => p === req.username ? nu : p).sort().join(':');
+            if (nk !== row.chat_key) await client.query('UPDATE messages SET chat_key=$1 WHERE chat_key=$2', [nk, row.chat_key]);
+          }
+          await client.query('UPDATE chat_members SET username=$1 WHERE username=$2', [nu, req.username]);
+          await client.query('UPDATE chat_hidden SET username=$1 WHERE username=$2', [nu, req.username]);
+          await client.query('UPDATE chat_archived SET username=$1 WHERE username=$2', [nu, req.username]);
+          await client.query('UPDATE blocked SET username=$1 WHERE username=$2', [nu, req.username]);
+          await client.query('UPDATE blocked SET blocked_username=$1 WHERE blocked_username=$2', [nu, req.username]);
+          await client.query('UPDATE push_subscriptions SET username=$1 WHERE username=$2', [nu, req.username]);
+          await client.query('UPDATE users SET username=$1,displayname=$2,bio=$3,avatar=$4 WHERE username=$5',
+            [nu, dn, sanitize((bio || '').slice(0, 200)), avatar || null, req.username]);
+          await client.query('COMMIT');
+          finalUsername = nu;
+        } catch (e) {
+          await client.query('ROLLBACK');
+          throw e;
+        } finally {
+          client.release();
         }
-        await pool.query('UPDATE users SET username=$1,displayname=$2,bio=$3,avatar=$4 WHERE username=$5',
-          [nu, dn, sanitize((bio || '').slice(0, 200)), avatar || null, req.username]);
-        finalUsername = nu;
       }
     }
     if (finalUsername === req.username) {
@@ -542,6 +579,7 @@ app.post('/api/send', auth, async (req, res) => {
     if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
     if (!to && !chat) return err(res, 'Неверные данные');
     if (msgType !== 'text' && msgType !== 'poll' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
+    if ((msgType === 'text' || msgType === 'poll') && (text || '').length > 10000) return err(res, 'Сообщение слишком длинное', 400);
 
     const isGroup = !!chat;
     let key, recipient;
@@ -851,6 +889,7 @@ app.post('/api/pin/:id', auth, async (req, res) => {
 // ── Typing indicator (in-memory) ──
 const typingMap = new Map();
 const groupMembersCache = new Map(); // chatId → [usernames]
+const pollTs = new Map();                 // deduplication for poll endpoint
 
 app.post('/api/typing', auth, async (req, res) => {
   try {
@@ -1188,7 +1227,6 @@ app.get('/api/sessions', auth, async (req, res) => {
     const currentToken = req.headers['x-token'];
     ok(res, {
       sessions: r.rows.map(s => ({
-        token: s.token,
         token_display: s.token.slice(0, 8) + '…',
         is_current: s.token === currentToken,
         created_at: parseInt(s.created_at),
@@ -1628,4 +1666,9 @@ app.post('/api/groups/:id/leave', auth, async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
+_initPromise.then(() => {
+  server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
+}).catch(e => {
+  console.error('FATAL: DB init failed, exiting', e);
+  process.exit(1);
+});
