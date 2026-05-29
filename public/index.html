@@ -2681,6 +2681,7 @@
             width: 32px; height: 32px;
             border-radius: 10px;
             background: rgba(51,144,236,.08);
+            pointer-events: none;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -6017,11 +6018,13 @@
             }
             bodyWrap.appendChild(mfoot);
 
-            // Reactions
-            const reacts = document.createElement('div');
-            reacts.className = 'reacts'; reacts.dataset.rid = m.id;
-            buildReactsInto(reacts, m.id, m.reactions || {});
-            bodyWrap.appendChild(reacts);
+            // Reactions (skip for deleted messages)
+            if (!m.deleted) {
+                const reacts = document.createElement('div');
+                reacts.className = 'reacts'; reacts.dataset.rid = m.id;
+                buildReactsInto(reacts, m.id, m.reactions || {});
+                bodyWrap.appendChild(reacts);
+            }
 
             // Assemble
             if (!isMe) mw.appendChild(mav);
@@ -7484,7 +7487,7 @@
                         }
                         document.getElementById('pinbarText').textContent = pinText;
                         document.getElementById('pinbar').classList.add('show');
-                        toast('Закреплено ' + S.pin + '');
+                        toast('📌 Закреплено');
                     } else {
                         // Unpinned
                         const mw = document.querySelector(`[data-id="${msgId}"]`);
@@ -7504,11 +7507,16 @@
             if (e.target.id === 'pinbarClose') {
                 const pid = _pinnedMsgId;
                 if (pid) {
-                    fetch(`/api/pin/${pid}`, { method: 'POST', headers: hdrs() }).catch(() => {});
-                    document.querySelectorAll('.mw.pinned').forEach(el => el.classList.remove('pinned'));
-                    _pinnedMsgId = null;
+                    fetch(`/api/pin/${pid}`, { method: 'POST', headers: hdrs() })
+                        .then(r => { if (r.ok) {
+                            document.querySelectorAll('.mw.pinned').forEach(el => el.classList.remove('pinned'));
+                            _pinnedMsgId = null;
+                            document.getElementById('pinbar').classList.remove('show');
+                        }})
+                        .catch(() => {});
+                } else {
+                    document.getElementById('pinbar').classList.remove('show');
                 }
-                document.getElementById('pinbar').classList.remove('show');
                 return;
             }
             if (_pinnedMsgId) {
@@ -7753,8 +7761,8 @@
                 _pinnedMsgId = pinMsg2.id;
                 const mw = document.querySelector(`[data-id="${pinMsg2.id}"]`);
                 if (mw) mw.classList.add('pinned');
-                let pinText = pinMsg2.type === 'image' ? S.camera + ' Фото' : pinMsg2.type === 'video' ? S.video + ' Видео' :
-                    pinMsg2.type === 'file' ? S.file + ' Файл' : (pinMsg2.text || '').slice(0, 60);
+                let pinText = pinMsg2.type === 'image' ? '📷 Фото' : pinMsg2.type === 'video' ? '🎬 Видео' :
+                    pinMsg2.type === 'file' ? '📎 Файл' : pinMsg2.type === 'voice' ? '🎤 Голосовое' : pinMsg2.type === 'sticker' ? '🎨 Стикер' : (pinMsg2.text || '').slice(0, 60);
                 document.getElementById('pinbarText').textContent = pinText;
                 document.getElementById('pinbar').classList.add('show');
             }
