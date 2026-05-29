@@ -268,6 +268,16 @@ function setupWSHandlers(ws, username) {
     if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
   });
   ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
+      if (msg.type === 'send') {
+        handleSend(username, msg).then(result => {
+          try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, ...result })); } catch (e) {}
+        }).catch(() => {});
+      }
+    } catch (e) { /* ignore non-JSON messages */ }
+  });
 }
 
 // WebSocket heartbeat every 30s
@@ -603,91 +613,94 @@ app.get('/api/search', auth, async (req, res) => {
 });
 
 // SEND MESSAGE
+async function handleSend(username, body) {
+  const { to, chat, text, type, fileName, fileSize, replyTo } = body;
+  const allowedTypes = ['text', 'image', 'video', 'file', 'sticker', 'voice', 'poll'];
+  const msgType = allowedTypes.includes(type) ? type : 'text';
+  if (msgType === 'text' && !text?.trim()) return { error: 'Неверные данные' };
+  if (msgType !== 'text' && !text) return { error: 'Неверные данные' };
+  if (!to && !chat) return { error: 'Неверные данные' };
+  if (msgType !== 'text' && msgType !== 'poll' && text.length > 22 * 1024 * 1024) return { error: 'Файл слишком большой' };
+  if ((msgType === 'text' || msgType === 'poll') && (text || '').length > 10000) return { error: 'Сообщение слишком длинное' };
+
+  const isGroup = !!chat;
+  let key, recipient;
+  if (isGroup) {
+    const g = await pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']);
+    if (!g.rows.length) return { error: 'Группа не найдена', status: 404 };
+    const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, username]);
+    if (!mem.rows.length) return { error: 'Вы не участник группы', status: 403 };
+    key = groupKey(chat);
+    recipient = chat;
+  } else {
+    const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, username]);
+    if (blk.rows.length) return { error: 'Пользователь заблокировал вас', status: 403 };
+    key = chatKey(username, to);
+    recipient = to;
+  }
+
+  const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [username]);
+  if (!ur.rows.length) return { error: 'Пользователь не найден', status: 404 };
+  const dn = ur.rows[0].displayname;
+  const ts = Date.now();
+  const storeText = msgType === 'text' ? sanitize(text.trim()) : typeof text === 'string' ? sanitize(text) : text;
+
+  let replyToId = null, replyPreview = null;
+  const rpId = parseInt(replyTo || 0);
+  if (rpId) {
+    const rr = await pool.query('SELECT id, text, type, from_dn, from_user FROM messages WHERE id=$1 AND chat_key=$2', [rpId, key]);
+    if (rr.rows.length) {
+      replyToId = rpId;
+      const rm = rr.rows[0];
+      const pv = typeLabel(rm.type) || sanitize((rm.text || '').slice(0, 80));
+      replyPreview = JSON.stringify({ from: rm.from_dn || rm.from_user, text: pv });
+    }
+  }
+
+  const r = await pool.query(
+    'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size,reply_to,reply_preview) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,ts',
+    [key, username, dn, recipient, storeText, msgType, ts, fileName || null, fileSize || 0, replyToId, replyPreview]
+  );
+  const msgRow = r.rows[0];
+  const msgId = parseInt(msgRow.id), msgTs = parseInt(msgRow.ts);
+
+  const payload = {
+    type: 'message',
+    id: msgId,
+    chatKey: key,
+    from: username,
+    displayname: dn,
+    text: (msgType === 'text' || msgType === 'sticker' || msgType === 'poll') ? storeText : null,
+    msgType,
+    ts: msgTs,
+    fileName: fileName || null,
+    fileSize: fileSize || 0,
+    replyTo: replyToId,
+    replyPreview
+  };
+  if (isGroup) {
+    const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [chat]);
+    for (const m of allMem.rows) wsBroadcast(m.username, payload);
+    for (const m of allMem.rows) {
+      if (m.username !== username && (!wsClients.has(m.username) || !isUserWSOnline(m.username))) {
+        sendPushNotification(m.username, {
+          type: 'new_message', chatKey: key, from: username, displayname: dn,
+          text: msgType === 'sticker' ? '🎨 Стикер' : msgType === 'voice' ? '🎤 Голосовое' : msgType === 'image' ? '📷 Фото' : msgType === 'file' ? '📎 Файл' : (text || '').slice(0, 100),
+          msgType, id: msgId, ts: msgTs
+        });
+      }
+    }
+  } else {
+    wsPushToChat(key, '', payload).catch(() => {});
+  }
+  return { ok: true, id: msgId, ts: msgTs };
+}
+
 app.post('/api/send', auth, async (req, res) => {
   try {
-    const { to, chat, text, type, fileName, fileSize, replyTo } = req.body;
-    const allowedTypes = ['text', 'image', 'video', 'file', 'sticker', 'voice', 'poll'];
-    const msgType = allowedTypes.includes(type) ? type : 'text';
-    if (msgType === 'text' && !text?.trim()) return err(res, 'Неверные данные');
-    if (msgType !== 'text' && !text) return err(res, 'Неверные данные');
-    if (!to && !chat) return err(res, 'Неверные данные');
-    if (msgType !== 'text' && msgType !== 'poll' && text.length > 22 * 1024 * 1024) return err(res, 'Файл слишком большой', 400);
-    if ((msgType === 'text' || msgType === 'poll') && (text || '').length > 10000) return err(res, 'Сообщение слишком длинное', 400);
-
-    const isGroup = !!chat;
-    let key, recipient;
-    if (isGroup) {
-      // Group chat
-      const g = await pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']);
-      if (!g.rows.length) return err(res, 'Группа не найдена', 404);
-      const mem = await pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, req.username]);
-      if (!mem.rows.length) return err(res, 'Вы не участник группы', 403);
-      key = groupKey(chat);
-      recipient = chat;
-    } else {
-      // Private chat
-      const blk = await pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, req.username]);
-      if (blk.rows.length) return err(res, 'Пользователь заблокировал вас', 403);
-      key = chatKey(req.username, to);
-      recipient = to;
-    }
-
-    const ur = await pool.query('SELECT displayname FROM users WHERE username=$1', [req.username]);
-    if (!ur.rows.length) return err(res, 'Пользователь не найден', 404);
-    const dn = ur.rows[0].displayname;
-    const ts = Date.now();
-    const storeText = msgType === 'text' ? sanitize(text.trim()) : typeof text === 'string' ? sanitize(text) : text;
-
-    let replyToId = null, replyPreview = null;
-    const rpId = parseInt(replyTo || 0);
-    if (rpId) {
-      const rr = await pool.query('SELECT id, text, type, from_dn, from_user FROM messages WHERE id=$1 AND chat_key=$2', [rpId, key]);
-      if (rr.rows.length) {
-        replyToId = rpId;
-        const rm = rr.rows[0];
-        const pv = typeLabel(rm.type) || sanitize((rm.text || '').slice(0, 80));
-        replyPreview = JSON.stringify({ from: rm.from_dn || rm.from_user, text: pv });
-      }
-    }
-
-    const r = await pool.query(
-      'INSERT INTO messages (chat_key,from_user,from_dn,to_user,text,type,ts,file_name,file_size,reply_to,reply_preview) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,ts',
-      [key, req.username, dn, recipient, storeText, msgType, ts, fileName || null, fileSize || 0, replyToId, replyPreview]
-    );
-    const msgRow = r.rows[0];
-    // Broadcast
-    const payload = {
-      type: 'message',
-      id: parseInt(msgRow.id),
-      chatKey: key,
-      from: req.username,
-      displayname: dn,
-      text: (msgType === 'text' || msgType === 'sticker' || msgType === 'poll') ? storeText : null,
-      msgType,
-      ts: parseInt(msgRow.ts),
-      fileName: fileName || null,
-      fileSize: fileSize || 0,
-      replyTo: replyToId,
-      replyPreview
-    };
-    if (isGroup) {
-      // Broadcast to all group members
-      const allMem = await pool.query('SELECT username FROM chat_members WHERE chat_id=$1', [chat]);
-      for (const m of allMem.rows) wsBroadcast(m.username, payload);
-      // Push for offline members
-      for (const m of allMem.rows) {
-        if (m.username !== req.username && (!wsClients.has(m.username) || !isUserWSOnline(m.username))) {
-          sendPushNotification(m.username, {
-            type: 'new_message', chatKey: key, from: req.username, displayname: dn,
-            text: msgType === 'sticker' ? '🎨 Стикер' : msgType === 'voice' ? '🎤 Голосовое' : msgType === 'image' ? '📷 Фото' : msgType === 'file' ? '📎 Файл' : (text || '').slice(0, 100),
-            msgType, id: parseInt(msgRow.id), ts: parseInt(msgRow.ts)
-          });
-        }
-      }
-    } else {
-      wsPushToChat(key, '', payload).catch(() => {});
-    }
-    ok(res, { ok: true, id: parseInt(msgRow.id), ts: parseInt(msgRow.ts) });
+    const result = await handleSend(req.username, req.body);
+    if (result.error) return err(res, result.error, result.status || 400);
+    ok(res, result);
   } catch (e) { err(res, e.message, 500); }
 });
 
