@@ -154,7 +154,7 @@ async function initDB() {
   try { await pool.query(`DELETE FROM sessions WHERE expires_at < $1`, [Date.now()]); } catch (e) { console.error('Session cleanup error:', e.message); }
   console.log('DB ready');
 }
-const _initPromise = initDB();
+initDB().catch(console.error);
 // Periodic session cleanup every hour
 setInterval(() => { pool.query('DELETE FROM sessions WHERE expires_at < $1', [Date.now()]).catch(() => {}); }, 3600000);
 
@@ -1708,10 +1708,5 @@ app.post('/api/groups/:id/leave', auth, async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-_initPromise.then(() => {
-  server.on('error', (e) => { console.error('Server error:', e.message); process.exit(1); });
-  server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
-}).catch(e => {
-  console.error('FATAL: DB init failed, exiting', e);
-  process.exit(1);
-});
+server.on('error', (e) => { console.error('Server error:', e.message); });
+server.listen(PORT, () => console.log(`Wavr on port ${PORT}`));
