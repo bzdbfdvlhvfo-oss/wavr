@@ -259,7 +259,10 @@ wss.on('connection', (ws, req) => {
         if (msg.type === 'send') {
           handleSend(username, msg).then(result => {
             try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, ...result })); } catch (e) {}
-          }).catch(() => {});
+          }).catch(err => {
+            console.error('WS handleSend error:', err?.message || err);
+            try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, error: 'Ошибка сервера' })); } catch (e) {}
+          });
         }
       } catch (e) {}
     });
