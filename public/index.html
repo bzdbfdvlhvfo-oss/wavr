@@ -3899,7 +3899,7 @@
             <!-- SIDEBAR -->
             <div class="sb" id="sb">
                 <div class="sbh">
-                    <div class="applogo">Wavr <span id="csInd" class="cs-dot" title="Подключение…"></span></div>
+                    <div class="applogo">Wavr <span id="csInd" class="cs-dot" title="Офлайн"></span></div>
                     <div class="urow">
                     <div class="av av-on" id="myav"
                         style="width:36px;height:36px;min-width:36px;font-size:12px;cursor:pointer"
@@ -5335,6 +5335,11 @@
                 }
                 return;
             }
+            // Check if order changed to avoid unnecessary DOM moves
+            const ordered = list.map(c => c.otherUsername);
+            const current = Array.from(el.querySelectorAll('.ci')).map(ci => ci.dataset.cu).filter(Boolean);
+            const orderChanged = JSON.stringify(ordered) !== JSON.stringify(current);
+
             const seen = new Set();
             let first = true;
             list.forEach((c, idx) => {
@@ -5374,8 +5379,8 @@
                             if (cm) cm.appendChild(b);
                         }
                     } else if (badge) { badge.remove(); }
-                    // move to correct position
-                    el.appendChild(ci);
+                    // move to correct position — only if order changed
+                    if (orderChanged) el.appendChild(ci);
                 } else {
                     ci = document.createElement('div');
                     ci.className = 'ci' + (isActive ? ' act' : '');
@@ -7874,7 +7879,8 @@
             _ws.onclose = (ev) => {
                 console.log('WS: closed code=' + ev.code + ' reason=' + (ev.reason||''));
                 _wsConnected = false;
-                document.getElementById('csInd').classList.remove('on');
+                const cs = document.getElementById('csInd');
+                cs.classList.remove('on'); cs.title = 'Офлайн';
                 _ws = null;
                 // Auth failure - kick to login instead of reconnecting
                 if (ev.code === 4001) { handleErr({ status: 401, message: '401' }); return; }
@@ -7890,7 +7896,8 @@
                     if (d.type === 'connected') {
                         console.log('WS: authenticated!');
                         _wsConnected = true;
-                        document.getElementById('csInd').classList.add('on');
+                        const cs = document.getElementById('csInd');
+                        cs.classList.add('on'); cs.title = 'Онлайн';
                         document.getElementById('offlineBar').style.display = 'none';
                         _wsRetries = 0;
                         return;
