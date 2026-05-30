@@ -6377,15 +6377,42 @@
             else body.to = chatWith.username;
             if (replyToId) body.replyTo = replyToId;
 
-            // Try WebSocket first for instant delivery
-            if (_ws && _ws.readyState === 1) {
+            // Send via WS if connected, otherwise REST
+            if (_ws && _ws.readyState === 1 && _wsConnected) {
                 try { _ws.send(JSON.stringify({ type: 'send', ...body })); } catch (e) {}
-                // Fallback timeout: if no ack in 2s, use REST
-                const wsTimeout = setTimeout(() => { _sendViaREST(tmpId, body); }, 5000);
-                _wsSendPending = _wsSendPending || new Map();
-                _wsSendPending.set(tmpId, { timeout: wsTimeout, body });
-                return;
+                // Will be confirmed by WS send_ack; if no ack, polling handles it
+            } else {
+                _sendViaREST(tmpId, body);
             }
+        }
+
+        async function _sendViaREST(tmpId, body) {
+            try {
+                const r = await fetch('/api/send', { method: 'POST', headers: hdrs(), body: JSON.stringify(body) });
+                const d = await r.json();
+                if (d.ok) {
+                    _confirmSend(tmpId, d.id, d.ts);
+                } else {
+                    _failSend(tmpId, d.error || 'отправка не удалась');
+                }
+            } catch (e) {
+                _failSend(tmpId, 'Ошибка сети');
+            }
+        }
+
+        function _confirmSend(tmpId, realId, realTs) {
+            seenIds.add(realId);
+            const el = document.querySelector(`[data-id="${tmpId}"]`);
+            if (el) { el.dataset.id = realId; if (realTs) el.dataset.ts = realTs; }
+            invalidateChats();
+            saveDraft();
+        }
+
+        function _failSend(tmpId, msg) {
+            const el = document.querySelector(`[data-id="${tmpId}"]`);
+            if (el) { el.dataset.failed = '1'; el.classList.add('mw-failed'); }
+            toast('Ошибка: ' + msg, 'err');
+        }
 
             _sendViaREST(tmpId, body);
         }
@@ -7903,11 +7930,8 @@
                         return;
                     }
                     if (d.type === 'send_ack') {
-                        if (d.ok) {
-                            _confirmSend(d.tmpId, d.id, d.ts);
-                        } else {
-                            _failSend(d.tmpId, d.error || 'отправка не удалась');
-                        }
+                        if (d.ok) { _confirmSend(d.tmpId, d.id, d.ts); }
+                        else { _failSend(d.tmpId, d.error || 'Ошибка'); }
                         return;
                     }
                     if (d.type === 'message' || d.type === 'group_created') {
