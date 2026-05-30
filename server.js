@@ -501,7 +501,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     let { username, password } = req.body;
     username = (username || '').toLowerCase().trim();
     if (!username || !password) return err(res, 'Заполните все поля');
-    const r = await pool.query('SELECT username, displayname, password, avatar, bio, is_premium FROM users WHERE username=$1', [username]);
+    const r = await pool.query('SELECT username, displayname, password, avatar, bio FROM users WHERE username=$1', [username]);
     if (!r.rows.length) return err(res, 'Неверный логин или пароль', 401);
     const u = r.rows[0];
     if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный логин или пароль', 401);
@@ -517,7 +517,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = Date.now() + 30 * 24 * 3600 * 1000;
     await pool.query('INSERT INTO sessions (token,username,expires_at,user_agent) VALUES ($1,$2,$3,$4)', [token, username, expires, ua]);
-    ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio, is_premium: u.is_premium || false }, token });
+    ok(res, { user: { username: u.username, displayname: u.displayname, avatar: u.avatar, bio: u.bio, is_premium: false }, token });
   } catch (e) { err(res, e.message, 500); }
 });
 
@@ -530,7 +530,7 @@ app.post('/api/logout', auth, async (req, res) => {
 // GET PROFILE
 app.get('/api/profile/:username', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT username,displayname,avatar,bio,created_at,is_premium FROM users WHERE username=$1', [sanitize(req.params.username)]);
+    const r = await pool.query('SELECT username,displayname,avatar,bio,created_at FROM users WHERE username=$1', [sanitize(req.params.username)]);
     if (!r.rows.length) return err(res, 'Не найден', 404);
     const user = r.rows[0];
     // Stats
