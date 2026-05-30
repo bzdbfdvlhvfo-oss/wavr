@@ -4805,14 +4805,15 @@
             } catch (e) { _isOwner = false; _ownerUsername = ''; }
 
             // Set my avatar
-            const myav = document.getElementById('myav');
-            setAv(myav, me.avatar || null, avc(me.username), me.displayname);
-            myav.classList.add('av-on');
-            if (me.avatar) _avCache[me.username] = me.avatar;
-            _userDnCache[me.username] = me.displayname;
-
-            document.getElementById('mydn').textContent = me.displayname;
-            document.getElementById('myun').textContent = '@' + me.username;
+            try {
+                const myav = document.getElementById('myav');
+                setAv(myav, me.avatar || null, avc(me.username || 'u'), me.displayname || me.username || '?');
+                myav.classList.add('av-on');
+                if (me.avatar) _avCache[me.username] = me.avatar;
+                _userDnCache[me.username] = me.displayname;
+                document.getElementById('mydn').textContent = me.displayname || me.username || '?';
+                document.getElementById('myun').textContent = '@' + (me.username || '?');
+            } catch(e) { console.error('enterApp avatar error:', e); }
             // Admin button — explicit show/hide each time
             document.getElementById('adminBtn').style.display = _isOwner ? 'flex' : 'none';
 
