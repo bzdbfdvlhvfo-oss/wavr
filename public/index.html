@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Wavr v3.6 - fix loading overlay pointer-events -->
+<!-- Wavr v3.7 - debug build -->
 <html lang="ru">
 
 <head>
@@ -3842,6 +3842,31 @@
 </head>
 
 <body>
+<div id="debugBanner" style="position:fixed;top:0;left:0;right:0;background:#ff0000;color:#fff;padding:10px;z-index:99999;font-family:monospace;font-size:12px;text-align:center;">
+  Wavr v3.7 DEBUG - If you see this, Railway deployed latest code
+  <div id="debugErrors" style="margin-top:5px;font-size:10px;"></div>
+</div>
+<script>
+  window.addEventListener('error', function(e) {
+    var errDiv = document.getElementById('debugErrors');
+    if (errDiv) {
+      errDiv.innerHTML += '<div>ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno + '</div>';
+    }
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var errDiv = document.getElementById('debugErrors');
+    if (errDiv) {
+      errDiv.innerHTML += '<div>PROMISE ERROR: ' + e.reason + '</div>';
+    }
+  });
+  // Hide banner after 10 seconds if no errors
+  setTimeout(function() {
+    var errDiv = document.getElementById('debugErrors');
+    if (errDiv && errDiv.innerHTML === '') {
+      document.getElementById('debugBanner').style.display = 'none';
+    }
+  }, 10000);
+</script>
 
     <!-- ══════ AUTH ══════ -->
     <div id="auth">
