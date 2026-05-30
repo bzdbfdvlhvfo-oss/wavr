@@ -6372,7 +6372,7 @@
             };
             appendMsgs([fake]);
 
-            const body = { text, tmpId };
+            const body = { text, tmpId, dn: me.displayname };
             if (chatWith.isGroup) body.chat = chatWith.groupId || chatWith.username;
             else body.to = chatWith.username;
             if (replyToId) body.replyTo = replyToId;
@@ -6381,7 +6381,7 @@
             if (_ws && _ws.readyState === 1) {
                 try { _ws.send(JSON.stringify({ type: 'send', ...body })); } catch (e) {}
                 // Fallback timeout: if no ack in 2s, use REST
-                const wsTimeout = setTimeout(() => { _sendViaREST(tmpId, body); }, 2000);
+                const wsTimeout = setTimeout(() => { _sendViaREST(tmpId, body); }, 5000);
                 _wsSendPending = _wsSendPending || new Map();
                 _wsSendPending.set(tmpId, { timeout: wsTimeout, body });
                 return;

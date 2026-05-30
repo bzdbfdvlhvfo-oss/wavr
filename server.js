@@ -617,19 +617,22 @@ async function handleSend(username, body) {
 
   const isGroup = !!chat;
   let key, recipient;
-  // Parallel: auth checks + displayname fetch
-  const [dnResult, authResult] = await Promise.all([
-    pool.query('SELECT displayname FROM users WHERE username=$1', [username]),
+  let dn = body.dn || '';
+  // Fetch displayname if client didn't provide it
+  if (!dn) {
+    const dnR = await pool.query('SELECT displayname FROM users WHERE username=$1', [username]);
+    if (!dnR.rows.length) return { error: 'Пользователь не найден', status: 404 };
+    dn = dnR.rows[0].displayname;
+  }
+  // Auth checks
+  const authResult = await (
     isGroup
       ? Promise.all([
           pool.query('SELECT id FROM chats WHERE id=$1 AND type=$2', [sanitize(chat), 'group']),
           pool.query('SELECT 1 FROM chat_members WHERE chat_id=$1 AND username=$2', [chat, username])
         ])
       : pool.query('SELECT 1 FROM blocked WHERE username=$1 AND blocked=$2', [to, username])
-  ]);
-
-  if (!dnResult.rows.length) return { error: 'Пользователь не найден', status: 404 };
-  const dn = dnResult.rows[0].displayname;
+  );
 
   if (isGroup) {
     const [gRes, memRes] = authResult;
