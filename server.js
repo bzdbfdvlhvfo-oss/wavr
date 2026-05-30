@@ -190,39 +190,39 @@ async function auth(req, res, next) {
   const cached = _authCache.get(t);
   if (cached && now - cached.ts < AUTH_CACHE_TTL) {
     if (cached.expires_at && now > cached.expires_at) {
-      _authCache.delete(t);
-      pool.query('DELETE FROM sessions WHERE token=$1', [t]).catch(() => {});
-      return err(res, 'Сессия истекла', 401);
+      _authCache.delete(t); return err(res, 'Сессия истекла', 401);
     }
     req.username = cached.username;
-    try { const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [cached.username]);
-      if (banCheck.rows[0]?.banned) { _authCache.delete(t); return err(res, 'Аккаунт заблокирован', 403); }
-    } catch (e) { /* column may not exist yet, skip */ }
-    const lastSeen = _lastSeenThrottle.get(t);
-    if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
+    if (!lastSeenOk(t, now)) {
       _lastSeenThrottle.set(t, now);
       pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [now, t]).catch(() => {});
     }
     return next();
   }
-  const r = await pool.query('SELECT username, expires_at FROM sessions WHERE token=$1', [t]);
-  if (!r.rows.length) return err(res, 'Сессия истекла', 401);
-  const sess = r.rows[0];
-  if (sess.expires_at && now > parseInt(sess.expires_at)) {
-    await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
-    return err(res, 'Сессия истекла', 401);
+  try {
+    const r = await pool.query('SELECT username, expires_at FROM sessions WHERE token=$1', [t]);
+    if (!r.rows.length) return err(res, 'Сессия истекла', 401);
+    const sess = r.rows[0];
+    if (sess.expires_at && now > parseInt(sess.expires_at)) {
+      await pool.query('DELETE FROM sessions WHERE token=$1', [t]);
+      return err(res, 'Сессия истекла', 401);
+    }
+    _authCache.set(t, { username: sess.username, expires_at: parseInt(sess.expires_at || 0), ts: now });
+    req.username = sess.username;
+    if (!lastSeenOk(t, now)) {
+      _lastSeenThrottle.set(t, now);
+      pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [now, t]).catch(() => {});
+    }
+    next();
+  } catch (e) {
+    console.error('Auth error:', e.message);
+    err(res, 'Ошибка сервера', 500);
   }
-  try { const banCheck2 = await pool.query('SELECT banned FROM users WHERE username=$1', [sess.username]);
-    if (banCheck2.rows[0]?.banned) { await pool.query('DELETE FROM sessions WHERE token=$1', [t]); return err(res, 'Аккаунт заблокирован', 403); }
-  } catch (e) { /* column may not exist yet, skip */ }
-  _authCache.set(t, { username: sess.username, expires_at: parseInt(sess.expires_at || 0), ts: now });
-  req.username = sess.username;
-  const lastSeen = _lastSeenThrottle.get(t);
-  if (!lastSeen || now - lastSeen > LAST_SEEN_THROTTLE_MS) {
-    _lastSeenThrottle.set(t, now);
-    pool.query('UPDATE sessions SET last_seen=$1 WHERE token=$2', [now, t]).catch(() => {});
-  }
-  next();
+}
+
+function lastSeenOk(t, now) {
+  const ls = _lastSeenThrottle.get(t);
+  return ls && now - ls <= LAST_SEEN_THROTTLE_MS;
 }
 
 // ── WebSocket ──
@@ -234,14 +234,9 @@ wss.on('connection', (ws, req) => {
   const token = params.get('token');
   if (!token) { ws.close(4001, 'No token'); return; }
 
-  (async () => {
-    const r = await pool.query('SELECT username FROM sessions WHERE token=$1', [token]);
+  pool.query('SELECT username FROM sessions WHERE token=$1', [token]).then(r => {
     if (!r.rows.length) { ws.close(4001, 'Invalid token'); return; }
     const username = r.rows[0].username;
-    try { const banCheck = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
-      if (banCheck.rows[0]?.banned) { ws.close(4003, 'Account banned'); return; }
-    } catch (e) { /* column may not exist yet, skip */ }
-
     ws.username = username;
     const set = wsClients.get(username);
     if (set) { set.add(ws); } else { wsClients.set(username, new Set([ws])); }
@@ -252,23 +247,20 @@ wss.on('connection', (ws, req) => {
       const set = wsClients.get(username);
       if (set) { set.delete(ws); if (!set.size) wsClients.delete(username); }
     });
-    ws.on('error', (e) => { console.log('WS error ' + username + ': ' + (e?.message || e)); });
+    ws.on('error', (e) => {});
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
         if (msg.type === 'send') {
           handleSend(username, msg).then(result => {
             try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, ...result })); } catch (e) {}
-          }).catch(err => {
-            console.error('WS handleSend error:', err?.message || err);
-            try { ws.send(JSON.stringify({ type: 'send_ack', tmpId: msg.tmpId, error: 'Ошибка сервера' })); } catch (e) {}
-          });
+          }).catch(() => {});
         }
       } catch (e) {}
     });
 
     try { ws.send(JSON.stringify({ type: 'connected', username })); } catch (e) {}
-  })();
+  }).catch(() => { ws.close(4001, 'Auth error'); });
 });
 
 // WebSocket heartbeat every 30s
