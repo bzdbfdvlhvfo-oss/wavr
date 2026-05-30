@@ -4508,6 +4508,12 @@
             console.error('Wavr unhandled rejection:', ev.reason);
         };
 
+        // Auto-hide loading overlay — prevents blocking login form
+        setTimeout(function() {
+            var ov = document.getElementById('loadingOverlay');
+            if (ov && ov.style.display !== 'none') { ov.style.opacity = '0'; setTimeout(function() { ov.style.display = 'none'; }, 370); }
+        }, 6000);
+
         /* ════════════════════════════════════════
            STATE
         ════════════════════════════════════════ */
