@@ -501,10 +501,13 @@ app.post('/api/login', authLimiter, async (req, res) => {
     let { username, password } = req.body;
     username = (username || '').toLowerCase().trim();
     if (!username || !password) return err(res, 'Заполните все поля');
-    const r = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
+    const r = await pool.query('SELECT username, displayname, password, avatar, bio, is_premium FROM users WHERE username=$1', [username]);
+    if (!r.rows.length) return err(res, 'Неверный логин или пароль', 401);
     const u = r.rows[0];
-    if (!r.rows.length || !await bcrypt.compare(password, u.password)) return err(res, 'Неверный логин или пароль', 401);
-    if (u.banned) return err(res, 'Аккаунт заблокирован', 403);
+    if (!await bcrypt.compare(password, u.password)) return err(res, 'Неверный логин или пароль', 401);
+    try { const bc = await pool.query('SELECT banned FROM users WHERE username=$1', [username]);
+      if (bc.rows[0]?.banned) return err(res, 'Аккаунт заблокирован', 403);
+    } catch (e) { /* column may not exist */ }
     const existing = await pool.query('SELECT token FROM sessions WHERE username=$1 ORDER BY created_at ASC', [username]);
     if (existing.rows.length >= 3) {
       const toDelete = existing.rows.slice(0, existing.rows.length - 2);
